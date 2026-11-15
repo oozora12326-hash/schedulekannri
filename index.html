@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（Firebaseリアルタイム同期版）</title>
+    <title>点検・予定管理アプリ（QR直通・同期版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -153,7 +153,7 @@
 <body>
 
 <div class="container">
-    <!-- 2. パスワード認証画面 -->
+    <!-- 2. パスワード認証画面（通常アクセス時） -->
     <div id="login-screen">
         <h2>🔒 管理者ログイン</h2>
         <p>メイン画面を表示するにはパスワードを入力してください。（初期パスワード: <code>1234</code>）</p>
@@ -162,9 +162,9 @@
         <p id="login-error" style="color: red; font-size: 14px;"></p>
     </div>
 
-    <!-- メイン管理画面 -->
+    <!-- メイン管理画面 ＆ 入力フォーム -->
     <div id="main-screen" class="hidden">
-        <div class="nav-tabs">
+        <div class="nav-tabs" id="nav-tabs-container">
             <button id="tab-dashboard" class="active" onclick="switchTab('dashboard')">1. 予定管理（リアルタイム同期）</button>
             <button id="tab-qr" onclick="switchTab('qr')">3. QR作成・入力フォーム</button>
         </div>
@@ -182,24 +182,24 @@
         <!-- 3 & 4. QRコード作成・入力フォーム -->
         <div id="section-qr" class="hidden">
             <h2>📱 QRコード作成 ＆ 入力フォーム</h2>
-            <p>ここに表示されるQRコードをスマホ等で読み取ると、お客様やスタッフが直接データを入力・送信できます。</p>
+            <p id="form-description">ここに表示されるQRコードをスマホ等で読み取ると、お客様やスタッフが直接データを入力・送信できます。</p>
             
-            <!-- QRコード生成セクション -->
-            <div style="background: #eef2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <!-- QRコード生成セクション（管理画面のみ表示） -->
+            <div id="qr-generator-section" style="background: #eef2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">🖨️ QRコード発行</h3>
-                <label>QRコードに埋め込むURLまたはテキスト</label>
-                <input type="text" id="qr-text-input" value="https://example.com/form" placeholder="URLを入力">
+                <label>QRコードに埋め込むURL（スマホ受信用：自動で ?form=open が付与されます）</label>
+                <input type="text" id="qr-text-input" placeholder="URLを入力">
                 <button onclick="generateQRCode()">QRコードを作成する</button>
                 
                 <div id="qr-result-area" class="qr-box hidden">
-                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">このQRコードを印刷して現地に掲示できます</p>
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">このQRコードをスマホで読み取ると、ログインなしで下の入力フォームが開きます</p>
                     <img id="qr-image" src="" alt="QRコード">
                 </div>
             </div>
 
             <!-- 入力フォーム -->
             <div style="background: #fafafa; padding: 15px; border: 1px dashed #ccc; border-radius: 6px;">
-                <h3 style="margin-top: 0; color: var(--primary-color);">✍️ 入力フォーム（手動追加・送信テスト）</h3>
+                <h3 style="margin-top: 0; color: var(--primary-color);">✍️ 入力フォーム</h3>
                 <label>建物名</label>
                 <input type="text" id="input-building" placeholder="例：サクラテラス">
                 
@@ -218,14 +218,14 @@
                 <label>メモ（任意）</label>
                 <input type="text" id="input-memo" placeholder="例：インターホン注意など">
 
-                <button onclick="submitForm()">データを送信してメイン画面に反映</button>
+                <button onclick="submitForm()">データを送信する</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // --- Firebaseの設定（ご提示いただいたプロジェクト情報） ---
+    // --- Firebaseの設定 ---
     const firebaseConfig = {
         apiKey: "AIzaSyCSh_34ovceOntnl60LqBX4n0o1rYFvro",
         authDomain: "huzairennrakuyou.firebaseapp.com",
@@ -236,42 +236,59 @@
         measurementId: "G-ZVXZML2XD1"
     };
 
-    // Firebaseの初期化
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     let schedules = [];
 
-    // ページ読み込み時の処理
+    // ページ読み込み時の判定
     window.onload = function() {
-        if(window.location.protocol.startsWith('http')) {
-            document.getElementById('qr-text-input').value = window.location.href;
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        if (urlParams.get('form') === 'open') {
+            // 【スマホなどでQRからアクセスされた場合】
+            // ログイン画面をスキップして、直接入力フォーム（3番目の画面）を表示する
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+            
+            // 管理者用のタブやQR発行機能はスマホ画面では非表示にする
+            document.getElementById('nav-tabs-container').classList.add('hidden');
+            document.getElementById('qr-generator-section').classList.add('hidden');
+            document.getElementById('form-description').innerText = "必要事項を入力して送信してください。";
+            
+            document.getElementById('section-dashboard').classList.add('hidden');
+            document.getElementById('section-qr').classList.remove('hidden');
+        } else {
+            // 【パソコン等で通常アクセスされた場合】
+            if(window.location.protocol.startsWith('http')) {
+                // 自動的に末尾に ?form=open を付けたURLをQR用の初期値にする
+                const baseUrl = window.location.href.split('?')[0];
+                document.getElementById('qr-text-input').value = baseUrl + "?form=open";
+            }
+            generateQRCode();
         }
-        generateQRCode();
     };
 
-    // 2. パスワード認証
+    // 2. パスワード認証（管理者用）
     function checkPassword() {
         const pass = document.getElementById('password-input').value;
         if (pass === "1234") {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
-            
-            // ログイン成功時にFirebaseからデータをリアルタイムで常時取得スタート
             startRealtimeListener();
         } else {
             document.getElementById('login-error').innerText = "パスワードが間違っています。";
         }
     }
 
-    // タブ切り替え
+    // タブ切り替え（管理者画面用）
     function switchTab(tabName) {
         if (tabName === 'dashboard') {
-            document.getElementById('section-dashboard').classList.add('active');
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('section-qr').classList.add('hidden');
             document.getElementById('tab-dashboard').classList.add('active');
             document.getElementById('tab-qr').classList.remove('active');
+            startRealtimeListener();
         } else {
             document.getElementById('section-dashboard').classList.add('hidden');
             document.getElementById('section-qr').classList.remove('hidden');
@@ -280,25 +297,25 @@
         }
     }
 
-    // --- Firebaseリアルタイム同期のリスナー ---
+    // --- Firebaseリアルタイム同期 ---
     function startRealtimeListener() {
         db.collection("schedules").onSnapshot((snapshot) => {
             schedules = [];
             snapshot.forEach((doc) => {
                 let data = doc.data();
-                data.id = doc.id; // Firestoreの自動IDを割り当て
+                data.id = doc.id;
                 schedules.push(data);
             });
             renderDashboard();
         }, (error) => {
             console.error("データ取得エラー: ", error);
-            alert("データベースからのデータ取得に失敗しました。Firestoreが作成されているかご確認ください。");
         });
     }
 
     // 1. メイン画面の描画
     function renderDashboard() {
         const container = document.getElementById('property-list-container');
+        if (!container) return;
         container.innerHTML = '';
 
         if (schedules.length === 0) {
@@ -371,7 +388,7 @@
         document.getElementById('qr-result-area').classList.remove('hidden');
     }
 
-    // フォーム入力送信処理（Firebaseへ保存）
+    // フォーム送信処理（スマホまたは管理者画面からの入力）
     function submitForm() {
         const building = document.getElementById('input-building').value.trim();
         const room = document.getElementById('input-room').value.trim();
@@ -385,7 +402,6 @@
             return;
         }
 
-        // Firestoreの "schedules" コレクションにデータを送信
         db.collection("schedules").add({
             building: building,
             room: room,
@@ -395,7 +411,7 @@
             memo: memo,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
-            alert("データを送信しました！管理画面にリアルタイム反映されます。");
+            alert("送信が完了しました！");
             
             // フォームクリア
             document.getElementById('input-building').value = '';
@@ -405,24 +421,26 @@
             document.getElementById('input-datetime').value = '';
             document.getElementById('input-memo').value = '';
 
-            // ダッシュボード画面へ切り替え
-            switchTab('dashboard');
+            // もしスマホ（QR経由）からのアクセスなら、送信完了後にメッセージを表示
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('form') === 'open') {
+                document.body.innerHTML = "<div style='text-align:center; padding:50px; font-family:sans-serif;'><h2>ご登録ありがとうございました！</h2><p>予定の送信が完了しました。このページは閉じて大丈夫です。</p></div>";
+            } else {
+                switchTab('dashboard');
+            }
         }).catch((error) => {
             console.error("送信エラー: ", error);
             alert("送信に失敗しました。");
         });
     }
 
-    // 予定を1件削除（Firebaseから削除）
+    // 削除・編集系の関数
     function deleteSchedule(id) {
         if (confirm("この予定を削除してもよろしいですか？")) {
-            db.collection("schedules").doc(id).delete().catch((error) => {
-                console.error("削除エラー: ", error);
-            });
+            db.collection("schedules").doc(id).delete();
         }
     }
 
-    // 物件フォルダ単位で全削除
     function deleteProperty(buildingName) {
         if (confirm(`「${buildingName}」のすべての予定を削除しますか？`)) {
             const targets = schedules.filter(item => item.building === buildingName);
@@ -432,25 +450,15 @@
         }
     }
 
-    // メモ編集欄の表示・非表示切り替え
     function toggleMemoEdit(id) {
-        const editArea = document.getElementById(`memo-edit-${id}`);
-        editArea.classList.toggle('hidden');
+        document.getElementById(`memo-edit-${id}`).classList.toggle('hidden');
     }
 
-    // メモの保存（Firebaseを更新）
     function saveMemo(id) {
         const inputVal = document.getElementById(`memo-input-${id}`).value.trim();
-        db.collection("schedules").doc(id).update({
-            memo: inputVal
-        }).then(() => {
-            toggleMemoEdit(id);
-        }).catch((error) => {
-            console.error("メモ更新エラー: ", error);
-        });
+        db.collection("schedules").doc(id).update({ memo: inputVal });
     }
 
-    // テストデータ追加用ボタン
     function addSampleData() {
         db.collection("schedules").add({
             building: "サクラテラス",
