@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>点検・予定管理アプリ（Firebaseリアルタイム同期版）</title>
+    <!-- FirebaseのCDN（ライブラリ）読み込み -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #f8f9fa;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 8px; margin-top: 0; }
+        .hidden { display: none !important; }
+        
+        input, select, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0 16px 0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #2980b9; }
+
+        .property-folder {
+            background: #f1f5f8;
+            border-left: 5px solid var(--accent-color);
+            padding: 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .folder-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dcdde1;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .folder-header h3 { margin: 0; color: var(--primary-color); }
+        
+        .schedule-item {
+            background: #fff;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .schedule-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .badge {
+            background: #e2e8f0;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .memo-section {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #eee;
+            font-size: 14px;
+            color: #555;
+        }
+        .memo-input-area {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .memo-input-area input {
+            margin: 0;
+            padding: 6px;
+            font-size: 14px;
+        }
+        
+        .btn-danger {
+            background-color: #e74c3c;
+            width: auto;
+            padding: 6px 12px;
+            margin: 0;
+            font-size: 13px;
+        }
+        .btn-danger:hover { background-color: #c0392b; }
+        
+        .btn-small {
+            width: auto;
+            padding: 4px 10px;
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .nav-tabs button {
+            background: #e2e8f0;
+            color: #333;
+            margin: 0;
+        }
+        .nav-tabs button.active {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .qr-box {
+            text-align: center;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-top: 15px;
+        }
+        .qr-box img {
+            max-width: 180px;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 2. パスワード認証画面 -->
+    <div id="login-screen">
+        <h2>🔒 管理者ログイン</h2>
+        <p>メイン画面を表示するにはパスワードを入力してください。（初期パスワード: <code>1234</code>）</p>
+        <input type="password" id="password-input" placeholder="パスワードを入力">
+        <button onclick="checkPassword()">ログイン</button>
+        <p id="login-error" style="color: red; font-size: 14px;"></p>
+    </div>
+
+    <!-- メイン管理画面 -->
+    <div id="main-screen" class="hidden">
+        <div class="nav-tabs">
+            <button id="tab-dashboard" class="active" onclick="switchTab('dashboard')">1. 予定管理（リアルタイム同期）</button>
+            <button id="tab-qr" onclick="switchTab('qr')">3. QR作成・入力フォーム</button>
+        </div>
+
+        <!-- 1. 物件別・点検日時一覧 -->
+        <div id="section-dashboard">
+            <h2>📁 物件別点検スケジュール</h2>
+            <p>クラウドデータベースと連動し、スマホ等からの送信がリアルタイムに反映されます。</p>
+            <div id="property-list-container">
+                <p>データを読み込み中...</p>
+            </div>
+            <button onclick="addSampleData()" style="background-color: #27ae60; margin-top: 20px;">+ テストデータをクラウドに追加</button>
+        </div>
+
+        <!-- 3 & 4. QRコード作成・入力フォーム -->
+        <div id="section-qr" class="hidden">
+            <h2>📱 QRコード作成 ＆ 入力フォーム</h2>
+            <p>ここに表示されるQRコードをスマホ等で読み取ると、お客様やスタッフが直接データを入力・送信できます。</p>
+            
+            <!-- QRコード生成セクション -->
+            <div style="background: #eef2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0; color: var(--primary-color);">🖨️ QRコード発行</h3>
+                <label>QRコードに埋め込むURLまたはテキスト</label>
+                <input type="text" id="qr-text-input" value="https://example.com/form" placeholder="URLを入力">
+                <button onclick="generateQRCode()">QRコードを作成する</button>
+                
+                <div id="qr-result-area" class="qr-box hidden">
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">このQRコードを印刷して現地に掲示できます</p>
+                    <img id="qr-image" src="" alt="QRコード">
+                </div>
+            </div>
+
+            <!-- 入力フォーム -->
+            <div style="background: #fafafa; padding: 15px; border: 1px dashed #ccc; border-radius: 6px;">
+                <h3 style="margin-top: 0; color: var(--primary-color);">✍️ 入力フォーム（手動追加・送信テスト）</h3>
+                <label>建物名</label>
+                <input type="text" id="input-building" placeholder="例：サクラテラス">
+                
+                <label>部屋番号</label>
+                <input type="text" id="input-room" placeholder="例：201号室">
+                
+                <label>お名前</label>
+                <input type="text" id="input-name" placeholder="例：山田 太郎">
+                
+                <label>連絡先</label>
+                <input type="text" id="input-contact" placeholder="例：090-0000-0000">
+                
+                <label>希望日時</label>
+                <input type="datetime-local" id="input-datetime">
+                
+                <label>メモ（任意）</label>
+                <input type="text" id="input-memo" placeholder="例：インターホン注意など">
+
+                <button onclick="submitForm()">データを送信してメイン画面に反映</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Firebaseの設定（ご提示いただいたプロジェクト情報） ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyCSh_34ovceOntnl60LqBX4n0o1rYFvro",
+        authDomain: "huzairennrakuyou.firebaseapp.com",
+        projectId: "huzairennrakuyou",
+        storageBucket: "huzairennrakuyou.appspot.com",
+        messagingSenderId: "938849808888",
+        appId: "1:938849808888:web:7981425741281a28b6666d",
+        measurementId: "G-ZVXZML2XD1"
+    };
+
+    // Firebaseの初期化
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let schedules = [];
+
+    // ページ読み込み時の処理
+    window.onload = function() {
+        if(window.location.protocol.startsWith('http')) {
+            document.getElementById('qr-text-input').value = window.location.href;
+        }
+        generateQRCode();
+    };
+
+    // 2. パスワード認証
+    function checkPassword() {
+        const pass = document.getElementById('password-input').value;
+        if (pass === "1234") {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+            
+            // ログイン成功時にFirebaseからデータをリアルタイムで常時取得スタート
+            startRealtimeListener();
+        } else {
+            document.getElementById('login-error').innerText = "パスワードが間違っています。";
+        }
+    }
+
+    // タブ切り替え
+    function switchTab(tabName) {
+        if (tabName === 'dashboard') {
+            document.getElementById('section-dashboard').classList.add('active');
+            document.getElementById('section-dashboard').classList.remove('hidden');
+            document.getElementById('section-qr').classList.add('hidden');
+            document.getElementById('tab-dashboard').classList.add('active');
+            document.getElementById('tab-qr').classList.remove('active');
+        } else {
+            document.getElementById('section-dashboard').classList.add('hidden');
+            document.getElementById('section-qr').classList.remove('hidden');
+            document.getElementById('tab-dashboard').classList.remove('active');
+            document.getElementById('tab-qr').classList.add('active');
+        }
+    }
+
+    // --- Firebaseリアルタイム同期のリスナー ---
+    function startRealtimeListener() {
+        db.collection("schedules").onSnapshot((snapshot) => {
+            schedules = [];
+            snapshot.forEach((doc) => {
+                let data = doc.data();
+                data.id = doc.id; // Firestoreの自動IDを割り当て
+                schedules.push(data);
+            });
+            renderDashboard();
+        }, (error) => {
+            console.error("データ取得エラー: ", error);
+            alert("データベースからのデータ取得に失敗しました。Firestoreが作成されているかご確認ください。");
+        });
+    }
+
+    // 1. メイン画面の描画
+    function renderDashboard() {
+        const container = document.getElementById('property-list-container');
+        container.innerHTML = '';
+
+        if (schedules.length === 0) {
+            container.innerHTML = '<p>登録されている予定はありません。「テストデータをクラウドに追加」または入力フォームから追加してください。</p>';
+            return;
+        }
+
+        const grouped = {};
+        schedules.forEach(item => {
+            if (!grouped[item.building]) {
+                grouped[item.building] = [];
+            }
+            grouped[item.building].push(item);
+        });
+
+        Object.keys(grouped).forEach(building => {
+            grouped[building].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
+            let folderDiv = document.createElement('div');
+            folderDiv.className = 'property-folder';
+            
+            let headerHtml = `
+                <div class="folder-header">
+                    <h3>🏢 ${building} (${grouped[building].length}件)</h3>
+                    <button class="btn-danger" onclick="deleteProperty('${building}')">📁 この物件をまるごと削除</button>
+                </div>
+            `;
+            
+            let itemsHtml = '';
+            grouped[building].forEach(sch => {
+                let formattedDate = sch.datetime ? sch.datetime.replace('T', ' ') : '日時未設定';
+                let memoText = sch.memo ? sch.memo : '（メモなし）';
+                
+                itemsHtml += `
+                    <div class="schedule-item" id="item-${sch.id}">
+                        <div class="schedule-main">
+                            <div>
+                                <strong>${sch.room}</strong> - ${sch.name}様 (${sch.contact})
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div class="badge">📅 ${formattedDate}</div>
+                                <button class="btn-danger btn-small" onclick="deleteSchedule('${sch.id}')">🗑️ 削除</button>
+                            </div>
+                        </div>
+                        <div class="memo-section">
+                            <strong>📝 メモ:</strong> <span id="memo-text-${sch.id}">${memoText}</span>
+                            <div style="margin-top: 4px;">
+                                <button class="btn-small" style="background-color: #7f8c8d;" onclick="toggleMemoEdit('${sch.id}')">✏️ メモ編集</button>
+                            </div>
+                            <div id="memo-edit-${sch.id}" class="memo-input-area hidden">
+                                <input type="text" id="memo-input-${sch.id}" value="${sch.memo || ''}" placeholder="メモを入力...">
+                                <button class="btn-small" onclick="saveMemo('${sch.id}')">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            folderDiv.innerHTML = headerHtml + itemsHtml;
+            container.appendChild(folderDiv);
+        });
+    }
+
+    // QRコード生成関数
+    function generateQRCode() {
+        const text = document.getElementById('qr-text-input').value.trim();
+        if (!text) return;
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(text)}`;
+        document.getElementById('qr-image').src = qrApiUrl;
+        document.getElementById('qr-result-area').classList.remove('hidden');
+    }
+
+    // フォーム入力送信処理（Firebaseへ保存）
+    function submitForm() {
+        const building = document.getElementById('input-building').value.trim();
+        const room = document.getElementById('input-room').value.trim();
+        const name = document.getElementById('input-name').value.trim();
+        const contact = document.getElementById('input-contact').value.trim();
+        const datetime = document.getElementById('input-datetime').value;
+        const memo = document.getElementById('input-memo').value.trim();
+
+        if (!building || !room || !name || !datetime) {
+            alert("建物名、部屋番号、お名前、希望日時は必須です。");
+            return;
+        }
+
+        // Firestoreの "schedules" コレクションにデータを送信
+        db.collection("schedules").add({
+            building: building,
+            room: room,
+            name: name,
+            contact: contact,
+            datetime: datetime,
+            memo: memo,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            alert("データを送信しました！管理画面にリアルタイム反映されます。");
+            
+            // フォームクリア
+            document.getElementById('input-building').value = '';
+            document.getElementById('input-room').value = '';
+            document.getElementById('input-name').value = '';
+            document.getElementById('input-contact').value = '';
+            document.getElementById('input-datetime').value = '';
+            document.getElementById('input-memo').value = '';
+
+            // ダッシュボード画面へ切り替え
+            switchTab('dashboard');
+        }).catch((error) => {
+            console.error("送信エラー: ", error);
+            alert("送信に失敗しました。");
+        });
+    }
+
+    // 予定を1件削除（Firebaseから削除）
+    function deleteSchedule(id) {
+        if (confirm("この予定を削除してもよろしいですか？")) {
+            db.collection("schedules").doc(id).delete().catch((error) => {
+                console.error("削除エラー: ", error);
+            });
+        }
+    }
+
+    // 物件フォルダ単位で全削除
+    function deleteProperty(buildingName) {
+        if (confirm(`「${buildingName}」のすべての予定を削除しますか？`)) {
+            const targets = schedules.filter(item => item.building === buildingName);
+            targets.forEach(item => {
+                db.collection("schedules").doc(item.id).delete();
+            });
+        }
+    }
+
+    // メモ編集欄の表示・非表示切り替え
+    function toggleMemoEdit(id) {
+        const editArea = document.getElementById(`memo-edit-${id}`);
+        editArea.classList.toggle('hidden');
+    }
+
+    // メモの保存（Firebaseを更新）
+    function saveMemo(id) {
+        const inputVal = document.getElementById(`memo-input-${id}`).value.trim();
+        db.collection("schedules").doc(id).update({
+            memo: inputVal
+        }).then(() => {
+            toggleMemoEdit(id);
+        }).catch((error) => {
+            console.error("メモ更新エラー: ", error);
+        });
+    }
+
+    // テストデータ追加用ボタン
+    function addSampleData() {
+        db.collection("schedules").add({
+            building: "サクラテラス",
+            room: "101号室",
+            name: "テスト 太郎",
+            contact: "090-0000-0000",
+            datetime: "2026-11-20T10:00",
+            memo: "Firebaseテストデータです",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            alert("テストデータを追加しました！");
+        });
+    }
+</script>
+
+</body>
+</html>
