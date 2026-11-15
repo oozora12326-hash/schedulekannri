@@ -246,23 +246,21 @@
         const urlParams = new URLSearchParams(window.location.search);
         
         if (urlParams.get('form') === 'open') {
-            // 【スマホなどでQRからアクセスされた場合】
-            // ログイン画面をスキップして、直接入力フォーム（3番目の画面）を表示する
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
-            
-            // 管理者用のタブやQR発行機能はスマホ画面では非表示にする
             document.getElementById('nav-tabs-container').classList.add('hidden');
             document.getElementById('qr-generator-section').classList.add('hidden');
             document.getElementById('form-description').innerText = "必要事項を入力して送信してください。";
-            
             document.getElementById('section-dashboard').classList.add('hidden');
             document.getElementById('section-qr').classList.remove('hidden');
         } else {
-            // 【パソコン等で通常アクセスされた場合】
             if(window.location.protocol.startsWith('http')) {
-                // 自動的に末尾に ?form=open を付けたURLをQR用の初期値にする
-                const baseUrl = window.location.href.split('?')[0];
+                let baseUrl = window.location.href.split('?')[0];
+                // 末尾がスラッシュで終わっていない場合は補正する
+                if (!baseUrl.endsWith('/')) {
+                    baseUrl += '/';
+                }
+                // 強制的に ?form=open を結合
                 document.getElementById('qr-text-input').value = baseUrl + "?form=open";
             }
             generateQRCode();
@@ -388,7 +386,7 @@
         document.getElementById('qr-result-area').classList.remove('hidden');
     }
 
-    // フォーム送信処理（スマホまたは管理者画面からの入力）
+    // フォーム送信処理
     function submitForm() {
         const building = document.getElementById('input-building').value.trim();
         const room = document.getElementById('input-room').value.trim();
@@ -413,7 +411,6 @@
         }).then(() => {
             alert("送信が完了しました！");
             
-            // フォームクリア
             document.getElementById('input-building').value = '';
             document.getElementById('input-room').value = '';
             document.getElementById('input-name').value = '';
@@ -421,7 +418,6 @@
             document.getElementById('input-datetime').value = '';
             document.getElementById('input-memo').value = '';
 
-            // もしスマホ（QR経由）からのアクセスなら、送信完了後にメッセージを表示
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('form') === 'open') {
                 document.body.innerHTML = "<div style='text-align:center; padding:50px; font-family:sans-serif;'><h2>ご登録ありがとうございました！</h2><p>予定の送信が完了しました。このページは閉じて大丈夫です。</p></div>";
@@ -434,7 +430,6 @@
         });
     }
 
-    // 削除・編集系の関数
     function deleteSchedule(id) {
         if (confirm("この予定を削除してもよろしいですか？")) {
             db.collection("schedules").doc(id).delete();
