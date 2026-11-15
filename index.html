@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（QR直通・同期版）</title>
+    <title>点検・予定管理アプリ（時間メイン対応版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -148,12 +148,19 @@
             max-width: 180px;
             height: auto;
         }
+        .note-text {
+            font-size: 13px;
+            color: #e67e22;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- 2. パスワード認証画面（通常アクセス時） -->
+    <!-- 管理者ログイン画面 -->
     <div id="login-screen">
         <h2>🔒 管理者ログイン</h2>
         <p>メイン画面を表示するにはパスワードを入力してください。（初期パスワード: <code>1234</code>）</p>
@@ -201,7 +208,7 @@
             <div style="background: #fafafa; padding: 15px; border: 1px dashed #ccc; border-radius: 6px;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">✍️ 入力フォーム</h3>
                 <label>建物名</label>
-                <input type="text" id="input-building" placeholder="例：サクラテラス">
+                <input type="text" id="input-building" placeholder="例：〇〇ハイツ">
                 
                 <label>部屋番号</label>
                 <input type="text" id="input-room" placeholder="例：201号室">
@@ -212,11 +219,15 @@
                 <label>連絡先</label>
                 <input type="text" id="input-contact" placeholder="例：090-0000-0000">
                 
-                <label>希望日時</label>
-                <input type="datetime-local" id="input-datetime">
+                <label>希望時間（例：10:00〜、午前中など）</label>
+                <input type="text" id="input-time" placeholder="例：10:00〜12:00 または 14:00頃">
+                <div class="note-text">※点検日が1日の場合は時間のみご指定ください。</div>
+
+                <label>日付も含めて指定したい場合（任意）</label>
+                <input type="date" id="input-date">
                 
-                <label>メモ（任意）</label>
-                <input type="text" id="input-memo" placeholder="例：インターホン注意など">
+                <label>メモ（自由記入）</label>
+                <input type="text" id="input-memo" placeholder="例：留守時は宅配ボックスなど">
 
                 <button onclick="submitForm()">データを送信する</button>
             </div>
@@ -241,7 +252,6 @@
 
     let schedules = [];
 
-    // ページ読み込み時の判定
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
         
@@ -256,18 +266,15 @@
         } else {
             if(window.location.protocol.startsWith('http')) {
                 let baseUrl = window.location.href.split('?')[0];
-                // 末尾がスラッシュで終わっていない場合は補正する
                 if (!baseUrl.endsWith('/')) {
                     baseUrl += '/';
                 }
-                // 強制的に ?form=open を結合
                 document.getElementById('qr-text-input').value = baseUrl + "?form=open";
             }
             generateQRCode();
         }
     };
 
-    // 2. パスワード認証（管理者用）
     function checkPassword() {
         const pass = document.getElementById('password-input').value;
         if (pass === "1234") {
@@ -279,7 +286,6 @@
         }
     }
 
-    // タブ切り替え（管理者画面用）
     function switchTab(tabName) {
         if (tabName === 'dashboard') {
             document.getElementById('section-dashboard').classList.remove('hidden');
@@ -295,7 +301,6 @@
         }
     }
 
-    // --- Firebaseリアルタイム同期 ---
     function startRealtimeListener() {
         db.collection("schedules").onSnapshot((snapshot) => {
             schedules = [];
@@ -310,7 +315,6 @@
         });
     }
 
-    // 1. メイン画面の描画
     function renderDashboard() {
         const container = document.getElementById('property-list-container');
         if (!container) return;
@@ -330,7 +334,8 @@
         });
 
         Object.keys(grouped).forEach(building => {
-            grouped[building].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+            // 日時順や名前順のソート（データがある場合）
+            grouped[building].sort((a, b) => (a.time || "").localeCompare(b.time || ""));
 
             let folderDiv = document.createElement('div');
             folderDiv.className = 'property-folder';
@@ -344,8 +349,9 @@
             
             let itemsHtml = '';
             grouped[building].forEach(sch => {
-                let formattedDate = sch.datetime ? sch.datetime.replace('T', ' ') : '日時未設定';
-                let memoText = sch.memo ? sch.memo : '（メモなし）';
+                let timeDisplay = sch.time ? `⏰ ${sch.time}` : '時間未設定';
+                let dateDisplay = sch.date ? `(📅 ${sch.date})` : '';
+                let memoText = sch.memo ? sch.memo : '（なし）';
                 
                 itemsHtml += `
                     <div class="schedule-item" id="item-${sch.id}">
@@ -354,7 +360,7 @@
                                 <strong>${sch.room}</strong> - ${sch.name}様 (${sch.contact})
                             </div>
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <div class="badge">📅 ${formattedDate}</div>
+                                <div class="badge">${timeDisplay} ${dateDisplay}</div>
                                 <button class="btn-danger btn-small" onclick="deleteSchedule('${sch.id}')">🗑️ 削除</button>
                             </div>
                         </div>
@@ -377,7 +383,6 @@
         });
     }
 
-    // QRコード生成関数
     function generateQRCode() {
         const text = document.getElementById('qr-text-input').value.trim();
         if (!text) return;
@@ -386,17 +391,17 @@
         document.getElementById('qr-result-area').classList.remove('hidden');
     }
 
-    // フォーム送信処理
     function submitForm() {
         const building = document.getElementById('input-building').value.trim();
         const room = document.getElementById('input-room').value.trim();
         const name = document.getElementById('input-name').value.trim();
         const contact = document.getElementById('input-contact').value.trim();
-        const datetime = document.getElementById('input-datetime').value;
+        const time = document.getElementById('input-time').value.trim();
+        const date = document.getElementById('input-date').value;
         const memo = document.getElementById('input-memo').value.trim();
 
-        if (!building || !room || !name || !datetime) {
-            alert("建物名、部屋番号、お名前、希望日時は必須です。");
+        if (!building || !room || !name || !time) {
+            alert("建物名、部屋番号、お名前、希望時間は必須です。");
             return;
         }
 
@@ -405,7 +410,8 @@
             room: room,
             name: name,
             contact: contact,
-            datetime: datetime,
+            time: time,
+            date: date,
             memo: memo,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
@@ -415,7 +421,8 @@
             document.getElementById('input-room').value = '';
             document.getElementById('input-name').value = '';
             document.getElementById('input-contact').value = '';
-            document.getElementById('input-datetime').value = '';
+            document.getElementById('input-time').value = '';
+            document.getElementById('input-date').value = '';
             document.getElementById('input-memo').value = '';
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -456,12 +463,13 @@
 
     function addSampleData() {
         db.collection("schedules").add({
-            building: "サクラテラス",
+            building: "〇〇ハイツ",
             room: "101号室",
             name: "テスト 太郎",
             contact: "090-0000-0000",
-            datetime: "2026-11-20T10:00",
-            memo: "Firebaseテストデータです",
+            time: "10:00〜12:00",
+            date: "",
+            memo: "時間のみ指定のテスト",
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             alert("テストデータを追加しました！");
