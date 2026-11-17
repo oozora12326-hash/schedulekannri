@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（時間メイン対応版）</title>
+    <title>点検・予定管理アプリ（15分単位・時間選択版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -219,15 +219,18 @@
                 <label>連絡先</label>
                 <input type="text" id="input-contact" placeholder="例：090-0000-0000">
                 
-                <label>希望時間（例：10:00〜、午前中など）</label>
-                <input type="text" id="input-time" placeholder="例：10:00〜12:00 または 14:00頃">
+                <label>希望時間</label>
+                <select id="input-time">
+                    <option value="">時間を選択してください</option>
+                    <!-- JavaScriptで15分単位の選択肢を自動生成します -->
+                </select>
                 <div class="note-text">※点検日が1日の場合は時間のみご指定ください。</div>
 
                 <label>日付も含めて指定したい場合（任意）</label>
                 <input type="date" id="input-date">
                 
                 <label>メモ（自由記入）</label>
-                <input type="text" id="input-memo" placeholder="例：留守時は宅配ボックスなど">
+                <input type="text" id="input-memo" placeholder="例：1日不在。">
 
                 <button onclick="submitForm()">データを送信する</button>
             </div>
@@ -253,6 +256,9 @@
     let schedules = [];
 
     window.onload = function() {
+        // 15分単位のタイムセレクトボックスを生成 (9:00〜18:00)
+        generateTimeOptions();
+
         const urlParams = new URLSearchParams(window.location.search);
         
         if (urlParams.get('form') === 'open') {
@@ -274,6 +280,29 @@
             generateQRCode();
         }
     };
+
+    // 15分刻みの時間選択肢を生成する関数
+    function generateTimeOptions() {
+        const select = document.getElementById('input-time');
+        const startHour = 9;  // 9時開始
+        const endHour = 18;   // 18時終了
+
+        for (let h = startHour; h <= endHour; h++) {
+            for (let m = 0; m < 60; m += 15) {
+                // 18:15以降は除外する場合の調整（18:00まで）
+                if (h === endHour && m > 0) break;
+
+                const hourStr = String(h).padStart(2, '0');
+                const minStr = String(m).padStart(2, '0');
+                const timeStr = `${hourStr}:${minStr}`;
+
+                const option = document.createElement('option');
+                option.value = timeStr;
+                option.textContent = timeStr;
+                select.appendChild(option);
+            }
+        }
+    }
 
     function checkPassword() {
         const pass = document.getElementById('password-input').value;
@@ -334,7 +363,6 @@
         });
 
         Object.keys(grouped).forEach(building => {
-            // 日時順や名前順のソート（データがある場合）
             grouped[building].sort((a, b) => (a.time || "").localeCompare(b.time || ""));
 
             let folderDiv = document.createElement('div');
@@ -396,7 +424,7 @@
         const room = document.getElementById('input-room').value.trim();
         const name = document.getElementById('input-name').value.trim();
         const contact = document.getElementById('input-contact').value.trim();
-        const time = document.getElementById('input-time').value.trim();
+        const time = document.getElementById('input-time').value;
         const date = document.getElementById('input-date').value;
         const memo = document.getElementById('input-memo').value.trim();
 
@@ -421,7 +449,7 @@
             document.getElementById('input-room').value = '';
             document.getElementById('input-name').value = '';
             document.getElementById('input-contact').value = '';
-            document.getElementById('input-time').value = '';
+            document.getElementById('input-time').selectedIndex = 0;
             document.getElementById('input-date').value = '';
             document.getElementById('input-memo').value = '';
 
@@ -467,9 +495,9 @@
             room: "101号室",
             name: "テスト 太郎",
             contact: "090-0000-0000",
-            time: "10:00〜12:00",
+            time: "10:00",
             date: "",
-            memo: "時間のみ指定のテスト",
+            memo: "1日不在。",
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             alert("テストデータを追加しました！");
