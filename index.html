@@ -222,7 +222,6 @@
                 <label>希望時間</label>
                 <select id="input-time">
                     <option value="">時間を選択してください</option>
-                    <!-- JavaScriptで15分単位の選択肢を自動生成します -->
                 </select>
                 <div class="note-text">※点検日が1日の場合は時間のみご指定ください。</div>
 
@@ -230,7 +229,7 @@
                 <input type="date" id="input-date">
                 
                 <label>メモ（自由記入）</label>
-                <input type="text" id="input-memo" placeholder="例：1日不在。">
+                <input type="text" id="input-memo" placeholder="例：9:00〜10:00、1日不在等。">
 
                 <button onclick="submitForm()">データを送信する</button>
             </div>
@@ -256,7 +255,6 @@
     let schedules = [];
 
     window.onload = function() {
-        // 15分単位のタイムセレクトボックスを生成 (9:00〜18:00)
         generateTimeOptions();
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -281,15 +279,13 @@
         }
     };
 
-    // 15分刻みの時間選択肢を生成する関数
     function generateTimeOptions() {
         const select = document.getElementById('input-time');
-        const startHour = 9;  // 9時開始
-        const endHour = 18;   // 18時終了
+        const startHour = 9;
+        const endHour = 18;
 
         for (let h = startHour; h <= endHour; h++) {
             for (let m = 0; m < 60; m += 15) {
-                // 18:15以降は除外する場合の調整（18:00まで）
                 if (h === endHour && m > 0) break;
 
                 const hourStr = String(h).padStart(2, '0');
@@ -497,7 +493,7 @@
             contact: "090-0000-0000",
             time: "10:00",
             date: "",
-            memo: "1日不在。",
+            memo: "9:00〜10:00、1日不在等。",
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             alert("テストデータを追加しました！");
