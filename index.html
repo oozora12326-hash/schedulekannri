@@ -121,8 +121,16 @@
         .folder-actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 8px;
             align-items: center;
+        }
+        .staff-badge {
+            font-size: 13px;
+            font-weight: bold;
+            color: #334155;
+            background: #e2e8f0;
+            padding: 5px 10px;
+            border-radius: 6px;
         }
         .rename-area {
             display: flex;
@@ -303,10 +311,50 @@
         .stamp-toolbar {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 14px;
             align-items: center;
         }
+        .stamp-date-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+        }
+        .stamp-date-group label {
+            font-size: 13px;
+            font-weight: bold;
+            color: #334155;
+            white-space: nowrap;
+        }
+        .stamp-date-group input[type="date"] {
+            width: auto;
+            margin: 0;
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+        .pdf-header-box {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .pdf-header-title {
+            margin: 0;
+            font-size: 18px;
+            color: var(--primary-color);
+        }
+        .pdf-header-meta {
+            margin-top: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #334155;
+        }
+
         .table-wrap {
             overflow-x: auto;
             border: 1px solid #cbd5e1;
@@ -464,12 +512,31 @@
 
         @media print {
             body { background: #fff; padding: 0; }
-            .container { box-shadow: none; max-width: 100%; padding: 0; }
-            .nav-tabs, .stamp-toolbar, .btn-small, .btn-secondary, #stamp-back-detail-btn, #login-screen, #section-dashboard, #section-property-add, #section-property-detail, #section-sign-page, #section-qr, .modal-backdrop {
+            .container { box-shadow: none; max-width: 100%; padding: 8px; }
+            .nav-tabs, .stamp-toolbar, .btn-small, .btn-secondary, #stamp-back-detail-btn, #stamp-share-status, #section-stamp > p, #login-screen, #section-dashboard, #section-property-add, #section-property-detail, #section-sign-page, #section-qr, .modal-backdrop {
                 display: none !important;
             }
-            #section-stamp { display: block !important; }
-            table.stamp-table th { position: static; }
+            #main-screen, #section-stamp {
+                display: block !important;
+            }
+            .pdf-header-box {
+                border: 1px solid #000;
+                background: #fff;
+            }
+            table.stamp-table {
+                min-width: 100%;
+            }
+            table.stamp-table th {
+                position: static;
+                background: #333 !important;
+                color: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .table-wrap {
+                overflow: visible;
+                border: none;
+            }
         }
     </style>
 </head>
@@ -515,6 +582,9 @@
             <div class="form-card">
                 <label for="new-prop-name">物件名</label>
                 <input type="text" id="new-prop-name" placeholder="例：〇〇ハイツ">
+
+                <label for="new-prop-staff">担当者名</label>
+                <input type="text" id="new-prop-staff" placeholder="例：山田 太郎">
 
                 <div class="grid-2">
                     <div>
@@ -566,8 +636,12 @@
             <p>左から「部屋番号・サイン・時間指定・メモ」の順に表示されます。</p>
 
             <div class="stamp-toolbar">
+                <div class="stamp-date-group">
+                    <label for="stamp-inspection-date">📅 日程</label>
+                    <input type="date" id="stamp-inspection-date" onchange="updateStampInspectionDate(this.value)">
+                </div>
                 <button type="button" class="btn-secondary" onclick="copyStampShareUrl()">🔗 共有用URLをコピー</button>
-                <button type="button" class="btn-success" onclick="exportStampPdf()">📄 PDF保存</button>
+                <button type="button" class="btn-success" id="btn-export-pdf" onclick="exportStampPdf()">📄 PDF保存</button>
             </div>
             <p id="stamp-share-status" style="margin: 0 0 12px 0; font-size: 13px; color: #27ae60; font-weight: bold;"></p>
 
@@ -685,8 +759,17 @@
     let currentViewName = "dashboard";
     let currentStampSheetId = "default-sheet";
 
+    function getTodayDateString() {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
     let stampSheetData = {
         buildingName: "",
+        inspectionDate: getTodayDateString(),
         floors: 3,
         units: 6,
         exclude4: false,
@@ -709,6 +792,11 @@
         generateTimeOptions();
         initCanvasEvents();
         initEdgeSwipeBack();
+
+        const dateInput = document.getElementById('stamp-inspection-date');
+        if (dateInput && !dateInput.value) {
+            dateInput.value = stampSheetData.inspectionDate;
+        }
 
         const urlParams = new URLSearchParams(window.location.search);
         const sheetParam = urlParams.get('stampSheet');
@@ -871,6 +959,10 @@
             if (selectedBuildingName && backBtn) {
                 backBtn.classList.remove('hidden');
             }
+            const dateInput = document.getElementById('stamp-inspection-date');
+            if (dateInput) {
+                dateInput.value = stampSheetData.inspectionDate || getTodayDateString();
+            }
             renderStampTable();
         } else {
             currentViewName = "qr";
@@ -887,6 +979,7 @@
         document.getElementById('tab-qr').classList.remove('active');
         document.getElementById('section-property-add').classList.remove('hidden');
         document.getElementById('new-prop-name').value = '';
+        document.getElementById('new-prop-staff').value = '';
         document.getElementById('new-prop-floors').value = '3';
         document.getElementById('new-prop-units').value = '6';
         document.getElementById('new-prop-ex4').checked = false;
@@ -895,6 +988,7 @@
 
     function saveNewProperty() {
         const name = document.getElementById('new-prop-name').value.trim();
+        const staffName = document.getElementById('new-prop-staff').value.trim();
         const floors = Math.max(1, Math.min(60, parseInt(document.getElementById('new-prop-floors').value, 10) || 1));
         const units = Math.max(1, Math.min(30, parseInt(document.getElementById('new-prop-units').value, 10) || 1));
         const exclude4 = document.getElementById('new-prop-ex4').checked;
@@ -910,6 +1004,7 @@
 
         db.collection("properties").doc(docId).set({
             name,
+            staffName,
             floors,
             units,
             exclude4,
@@ -932,6 +1027,7 @@
                 properties.push({
                     id: doc.id,
                     name: d.name || "",
+                    staffName: d.staffName || "",
                     floors: Number(d.floors) || 3,
                     units: Number(d.units) || 6,
                     exclude4: Boolean(d.exclude4),
@@ -1037,6 +1133,7 @@
         return {
             id: null,
             name: buildingName,
+            staffName: "",
             floors: 3,
             units: 6,
             exclude4: false,
@@ -1069,6 +1166,10 @@
             if (propCfg.exclude9) exLabels.push("9号室除");
             const exText = exLabels.length ? ` / ${exLabels.join("・")}` : "";
 
+            const staffLabel = propCfg.staffName
+                ? `<span class="staff-badge">担当：${escapeHtml(propCfg.staffName)}</span>`
+                : `<span class="staff-badge">担当：未設定</span>`;
+
             let renameHtml = '';
             if (isRenaming) {
                 renameHtml = `
@@ -1095,6 +1196,7 @@
                     </div>
                     <div class="folder-actions">
                         <button class="btn-danger" onclick="deleteProperty('${escapedAttrBuilding}')">点検完了</button>
+                        ${staffLabel}
                     </div>
                     ${renameHtml}
                 </div>
@@ -1132,8 +1234,9 @@
             propCfg.exclude4 ? "4号室を除く" : "",
             propCfg.exclude9 ? "9号室を除く" : ""
         ].filter(Boolean).join(" / ");
+        const staffText = propCfg.staffName ? ` ｜ 担当者：${propCfg.staffName}` : "";
         document.getElementById('detail-property-meta').innerText =
-            `建物情報：${propCfg.floors}階 × 1フロア${propCfg.units}戸${exText ? `（${exText}）` : ""} ｜ 指定時間順に並んでいます`;
+            `建物情報：${propCfg.floors}階 × 1フロア${propCfg.units}戸${exText ? `（${exText}）` : ""}${staffText} ｜ 指定時間順に並んでいます`;
 
         const listEl = document.getElementById('detail-schedule-list');
         const items = schedules
@@ -1202,6 +1305,9 @@
         stampSheetData.units = propCfg.units;
         stampSheetData.exclude4 = propCfg.exclude4;
         stampSheetData.exclude9 = propCfg.exclude9;
+        if (!stampSheetData.inspectionDate) {
+            stampSheetData.inspectionDate = getTodayDateString();
+        }
 
         syncSchedulesIntoStampRows(selectedBuildingName);
 
@@ -1214,7 +1320,19 @@
 
     function normalizeRoomKey(roomStr) {
         if (!roomStr) return "";
-        return String(roomStr).replace(/号室/g, "").trim();
+        const raw = String(roomStr).replace(/号室/g, "").trim();
+        const match = raw.match(/^(\d+)F?[-ー]?(\d+)$/i);
+        if (match) {
+            const floorNum = parseInt(match[1], 10);
+            const unitNum = parseInt(match[2], 10);
+            return `${floorNum}${String(unitNum).padStart(2, '0')}`;
+        }
+        if (/^\d{1,2}$/.test(raw) && raw.length === 2) {
+            const floorNum = parseInt(raw[0], 10);
+            const unitNum = parseInt(raw[1], 10);
+            return `${floorNum}${String(unitNum).padStart(2, '0')}`;
+        }
+        return raw;
     }
 
     function syncSchedulesIntoStampRows(buildingName) {
@@ -1244,12 +1362,17 @@
                 const d = doc.data();
                 stampSheetData = {
                     buildingName: d.buildingName || stampSheetData.buildingName || selectedBuildingName || "",
+                    inspectionDate: d.inspectionDate || stampSheetData.inspectionDate || getTodayDateString(),
                     floors: Number(d.floors) || stampSheetData.floors || 3,
                     units: Number(d.units) || stampSheetData.units || 6,
                     exclude4: Boolean(d.exclude4),
                     exclude9: Boolean(d.exclude9),
                     rows: d.rows || {}
                 };
+                const dateInput = document.getElementById('stamp-inspection-date');
+                if (dateInput && document.activeElement !== dateInput) {
+                    dateInput.value = stampSheetData.inspectionDate;
+                }
             }
             if (stampSheetData.buildingName) {
                 syncSchedulesIntoStampRows(stampSheetData.buildingName);
@@ -1261,6 +1384,11 @@
         });
     }
 
+    function updateStampInspectionDate(newDate) {
+        stampSheetData.inspectionDate = newDate || getTodayDateString();
+        persistStampSheet();
+    }
+
     function generateRoomList() {
         const rooms = [];
         const floors = Number(stampSheetData.floors) || 1;
@@ -1270,7 +1398,7 @@
             for (let u = 1; u <= units; u++) {
                 if (stampSheetData.exclude4 && u === 4) continue;
                 if (stampSheetData.exclude9 && u === 9) continue;
-                const unitStr = units >= 10 ? String(u).padStart(2, '0') : String(u);
+                const unitStr = String(u).padStart(2, '0');
                 rooms.push(`${f}${unitStr}`);
             }
         }
@@ -1282,9 +1410,17 @@
         if (!container) return;
 
         const rooms = generateRoomList();
-        const titleHtml = stampSheetData.buildingName
-            ? `<h3 style="margin: 0 0 10px 0; color: var(--primary-color);">🏢 ${escapeHtml(stampSheetData.buildingName)}（全${rooms.length}戸）</h3>`
-            : `<h3 style="margin: 0 0 10px 0; color: var(--primary-color);">📋 印取り表（全${rooms.length}戸）</h3>`;
+        const buildingLabel = stampSheetData.buildingName ? escapeHtml(stampSheetData.buildingName) : "（物件名未設定）";
+        const dateLabel = stampSheetData.inspectionDate ? escapeHtml(stampSheetData.inspectionDate) : "（日程未設定）";
+        const propCfg = stampSheetData.buildingName ? getPropertyConfig(stampSheetData.buildingName) : null;
+        const staffText = (propCfg && propCfg.staffName) ? ` ／ 担当：${escapeHtml(propCfg.staffName)}` : "";
+
+        const headerHtml = `
+            <div class="pdf-header-box">
+                <h3 class="pdf-header-title">🏢 物件名：${buildingLabel}（全${rooms.length}戸）</h3>
+                <div class="pdf-header-meta">📅 日程：${dateLabel}${staffText}</div>
+            </div>
+        `;
 
         const rowsHtml = rooms.map(room => {
             const rowData = (stampSheetData.rows && stampSheetData.rows[room]) ? stampSheetData.rows[room] : {};
@@ -1295,10 +1431,10 @@
 
             return `
                 <tr>
-                    <td class="room-col">${room}号室</td>
+                    <td class="room-col">${room}</td>
                     <td class="sign-cell-box">
                         ${signData
-                            ? `<img class="sign-thumb" src="${signData}" alt="${room}号室サイン"><span class="sign-status-done">✓ サイン済</span>`
+                            ? `<img class="sign-thumb" src="${signData}" alt="${room}サイン"><span class="sign-status-done">✓ サイン済</span>`
                             : `<span class="sign-status-empty">未記入</span>`}
                         <button type="button" class="btn-secondary btn-small" onclick="openSignPage('${escapedRoom}')">✍️ サインページ</button>
                     </td>
@@ -1322,7 +1458,7 @@
         }).join('');
 
         container.innerHTML = `
-            ${titleHtml}
+            ${headerHtml}
             <div class="table-wrap">
                 <table class="stamp-table">
                     <thead>
@@ -1342,13 +1478,20 @@
     }
 
     function exportStampPdf() {
+        const prevTitle = document.title;
+        const bName = stampSheetData.buildingName || "印取り用紙";
+        const dStr = stampSheetData.inspectionDate || getTodayDateString();
+        document.title = `${bName}_${dStr}_印取り用紙`;
         window.print();
+        setTimeout(() => {
+            document.title = prevTitle;
+        }, 500);
     }
 
     function openTimeModal(room) {
         editingTimeRoom = room;
         const current = (stampSheetData.rows && stampSheetData.rows[room]) ? (stampSheetData.rows[room].timeSpec || "") : "";
-        document.getElementById('time-modal-title').innerText = `${room}号室 - 時間指定`;
+        document.getElementById('time-modal-title').innerText = `${room} - 時間指定`;
         document.getElementById('time-modal-input').value = current;
         document.getElementById('time-modal').classList.remove('hidden');
     }
@@ -1389,7 +1532,7 @@
         hideAllSections();
         currentViewName = "sign";
         document.getElementById('section-sign-page').classList.remove('hidden');
-        document.getElementById('sign-page-title').innerText = `✍️ ${room}号室 サイン記入ページ`;
+        document.getElementById('sign-page-title').innerText = `✍️ ${room} サイン記入ページ`;
         document.getElementById('sign-page-subtitle').innerText =
             stampSheetData.buildingName ? `物件：${stampSheetData.buildingName}` : "印取り用紙サイン";
 
@@ -1515,6 +1658,7 @@
     function persistStampSheet() {
         db.collection("stampSheets").doc(currentStampSheetId).set({
             buildingName: stampSheetData.buildingName || "",
+            inspectionDate: stampSheetData.inspectionDate || getTodayDateString(),
             floors: stampSheetData.floors,
             units: stampSheetData.units,
             exclude4: stampSheetData.exclude4,
@@ -1647,6 +1791,7 @@
     function addSampleData() {
         db.collection("properties").add({
             name: "〇〇ハイツ",
+            staffName: "山田 太郎",
             floors: 3,
             units: 6,
             exclude4: true,
@@ -1655,7 +1800,7 @@
         });
         db.collection("schedules").add({
             building: "〇〇ハイツ",
-            room: "101号室",
+            room: "101",
             name: "テスト 太郎",
             contact: "090-0000-0000",
             time: "10:00",
