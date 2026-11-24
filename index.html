@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（印取り用紙・共有対応版）</title>
+    <title>点検・予定管理アプリ（物件フォルダ・時間別・印取り連携版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -22,7 +22,7 @@
             color: #333;
         }
         .container {
-            max-width: 960px;
+            max-width: 980px;
             margin: 0 auto;
             background: #fff;
             padding: 20px;
@@ -31,7 +31,7 @@
         }
         h2 { border-bottom: 2px solid #eee; padding-bottom: 8px; margin-top: 0; }
         .hidden { display: none !important; }
-        
+
         input, select, textarea, button {
             width: 100%;
             padding: 10px;
@@ -50,24 +50,55 @@
         }
         button:hover { background-color: #2980b9; }
 
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .top-bar h2 {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin: 0;
+        }
+
         .property-folder {
             background: #f1f5f8;
             border-left: 5px solid var(--accent-color);
             padding: 16px;
-            margin-bottom: 20px;
-            border-radius: 4px;
+            margin-bottom: 16px;
+            border-radius: 6px;
         }
         .folder-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             flex-wrap: wrap;
             gap: 8px;
-            border-bottom: 1px solid #dcdde1;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
         }
-        .folder-header h3 { margin: 0; color: var(--primary-color); }
+        .folder-title-btn {
+            background: transparent;
+            color: var(--primary-color);
+            width: auto;
+            padding: 4px 8px;
+            margin: 0;
+            font-size: 18px;
+            text-align: left;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .folder-title-btn:hover {
+            background: #e2e8f0;
+            color: #1d4ed8;
+        }
+        .folder-meta {
+            font-size: 13px;
+            color: #475569;
+            margin-top: 4px;
+        }
         .folder-actions {
             display: flex;
             flex-wrap: wrap;
@@ -77,7 +108,7 @@
         .rename-area {
             display: flex;
             gap: 8px;
-            margin-top: 8px;
+            margin-top: 10px;
             width: 100%;
         }
         .rename-area input {
@@ -85,12 +116,12 @@
             padding: 6px 10px;
             font-size: 14px;
         }
-        
+
         .schedule-item {
             background: #fff;
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 6px;
+            padding: 14px;
+            margin: 10px 0;
+            border-radius: 8px;
             border: 1px solid #e2e8f0;
         }
         .schedule-main {
@@ -98,18 +129,30 @@
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
         }
-        .badge {
-            background: #e2e8f0;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 12px;
+        .time-highlight {
+            background: #dbeafe;
+            color: #1e3a8a;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        .room-highlight {
+            font-size: 17px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        .sub-info {
+            font-size: 13px;
+            color: #475569;
+            margin-top: 4px;
         }
         .memo-section {
-            margin-top: 8px;
+            margin-top: 10px;
             padding-top: 8px;
-            border-top: 1px dashed #eee;
+            border-top: 1px dashed #e2e8f0;
             font-size: 14px;
             color: #555;
         }
@@ -123,7 +166,7 @@
             padding: 6px;
             font-size: 14px;
         }
-        
+
         .btn-danger {
             background-color: #e74c3c;
             width: auto;
@@ -132,17 +175,17 @@
             font-size: 13px;
         }
         .btn-danger:hover { background-color: #c0392b; }
-        
+
         .btn-small {
             width: auto;
-            padding: 4px 10px;
+            padding: 5px 10px;
             margin: 0;
             font-size: 13px;
         }
         .btn-secondary {
             background-color: #7f8c8d;
             width: auto;
-            padding: 6px 10px;
+            padding: 7px 12px;
             margin: 0;
             font-size: 13px;
         }
@@ -175,7 +218,7 @@
             background: var(--primary-color);
             color: white;
         }
-        
+
         .qr-box {
             text-align: center;
             background: #fff;
@@ -196,33 +239,32 @@
             font-weight: bold;
         }
 
-        /* --- 印取り用紙スタイル --- */
-        .stamp-config-box {
-            background: #f1f5f8;
-            padding: 16px;
-            border-radius: 8px;
-            margin-bottom: 18px;
-            border: 1px solid #dce3ea;
+        .form-card {
+            background: #f8fafc;
+            padding: 18px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            margin-bottom: 16px;
         }
-        .stamp-grid-inputs {
+        .grid-2 {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
         }
-        .stamp-grid-inputs label {
+        .grid-2 label {
             display: block;
             font-weight: bold;
             font-size: 14px;
             margin-bottom: 4px;
         }
-        .stamp-grid-inputs input {
+        .grid-2 input {
             margin: 0;
         }
         .exclude-options {
             display: flex;
             flex-wrap: wrap;
-            gap: 16px;
-            margin: 12px 0;
+            gap: 18px;
+            margin: 14px 0;
         }
         .exclude-options label {
             display: flex;
@@ -238,6 +280,8 @@
             height: 18px;
             margin: 0;
         }
+
+        /* --- 印取り表スタイル --- */
         .stamp-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -254,7 +298,7 @@
         table.stamp-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 520px;
+            min-width: 560px;
         }
         table.stamp-table th, table.stamp-table td {
             border: 1px solid #cbd5e1;
@@ -273,37 +317,83 @@
         table.stamp-table td.room-col {
             font-weight: bold;
             background: #f8fafc;
-            width: 95px;
+            width: 100px;
             white-space: nowrap;
         }
-        .touch-cell {
-            min-height: 54px;
-            height: 54px;
+        .time-cell-box {
+            min-height: 44px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
             cursor: pointer;
-            transition: background-color 0.15s;
-            padding: 4px !important;
+            padding: 4px;
+            border-radius: 4px;
         }
-        .touch-cell:hover {
-            background-color: #eef6ff;
+        .time-cell-box:hover {
+            background: #eef6ff;
         }
-        .sign-preview {
-            max-height: 44px;
-            max-width: 110px;
-            object-fit: contain;
-            display: block;
-            margin: 0 auto;
-        }
-        .cell-placeholder {
-            color: #94a3b8;
-            font-size: 12px;
-        }
-        .time-cell-text {
-            font-size: 13px;
+        .time-badge-pill {
+            background: #dbeafe;
+            color: #1e3a8a;
             font-weight: bold;
-            color: #1e293b;
+            font-size: 13px;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .remark-cell {
+            text-align: left !important;
+            min-width: 170px;
+        }
+        .remark-text {
+            font-size: 13px;
+            color: #334155;
+            word-break: break-word;
+            margin-bottom: 4px;
+        }
+        .sign-status-done {
+            color: #15803d;
+            background: #dcfce7;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+        .sign-status-empty {
+            color: #64748b;
+            font-size: 12px;
+            display: block;
+            margin-bottom: 4px;
         }
 
-        /* --- 拡大編集モーダル --- */
+        /* --- サイン専用ページ --- */
+        #sign-canvas {
+            width: 100%;
+            height: 280px;
+            border: 2px solid var(--accent-color);
+            border-radius: 8px;
+            background: #fff;
+            touch-action: none;
+            display: block;
+        }
+        .sign-preview-box {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            background: #f8fafc;
+            text-align: center;
+        }
+        .sign-preview-large {
+            max-height: 110px;
+            max-width: 100%;
+            object-fit: contain;
+        }
+
+        /* --- 時間指定編集モーダル --- */
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -317,7 +407,7 @@
         .modal-content {
             background: #fff;
             width: 100%;
-            max-width: 540px;
+            max-width: 460px;
             border-radius: 12px;
             padding: 20px;
             box-shadow: 0 12px 30px rgba(0,0,0,0.25);
@@ -332,38 +422,26 @@
         }
         .modal-header h3 {
             margin: 0;
-            font-size: 18px;
+            font-size: 17px;
             color: var(--primary-color);
-        }
-        #sign-canvas {
-            width: 100%;
-            height: 260px;
-            border: 2px solid var(--accent-color);
-            border-radius: 8px;
-            background: #fff;
-            touch-action: none;
-            display: block;
         }
         .modal-actions {
             display: flex;
             gap: 10px;
-            margin-top: 14px;
-            flex-wrap: wrap;
+            margin-top: 12px;
         }
         .modal-actions button {
             margin: 0;
             flex: 1;
-            min-width: 100px;
         }
 
         @media print {
             body { background: #fff; padding: 0; }
             .container { box-shadow: none; max-width: 100%; padding: 0; }
-            .nav-tabs, .stamp-config-box, .stamp-toolbar, #login-screen, #section-dashboard, #section-qr, .modal-backdrop {
+            .nav-tabs, .stamp-toolbar, #login-screen, #section-dashboard, #section-property-add, #section-property-detail, #section-sign-page, #section-qr, .modal-backdrop {
                 display: none !important;
             }
             #section-stamp { display: block !important; }
-            .touch-cell { height: 48px; min-height: 48px; }
         }
     </style>
 </head>
@@ -387,56 +465,107 @@
             <button id="tab-qr" onclick="switchTab('qr')">3. QR作成・入力フォーム</button>
         </div>
 
-        <!-- 1. 物件別・点検日時一覧 -->
+        <!-- 1. 物件別・点検スケジュール（フォルダ一覧） -->
         <div id="section-dashboard">
-            <h2>📁 物件別点検スケジュール</h2>
-            <p>QRコードを読み取り、送信されたデータが、物件ごと時間順に表示されます。</p>
+            <div class="top-bar">
+                <h2>📁 物件別点検スケジュール</h2>
+                <button type="button" class="btn-success" onclick="openPropertyAddScreen()">＋ 物件追加</button>
+            </div>
+            <p>QRコードを読み取り、送信されたデータが、物件ごと時間順に表示されます。物件名をタッチすると詳細画面が開きます。</p>
             <div id="property-list-container">
                 <p>データを読み込み中...</p>
             </div>
             <button onclick="addSampleData()" style="background-color: #27ae60; margin-top: 20px;">+ テストデータをクラウドに追加</button>
         </div>
 
-        <!-- 2. 印取り用紙 -->
-        <div id="section-stamp" class="hidden">
-            <h2>📝 印取り用紙</h2>
-            <p>階数と戸数を指定して印取り表を作成します。各セルをタッチすると拡大してサインや時間指定を入力でき、共有URLで他の端末とも共有できます。</p>
+        <!-- 物件追加画面 -->
+        <div id="section-property-add" class="hidden">
+            <div class="top-bar">
+                <h2>➕ 物件追加</h2>
+                <button type="button" class="btn-secondary" onclick="switchTab('dashboard')">← 予定管理に戻る</button>
+            </div>
+            <div class="form-card">
+                <label for="new-prop-name">物件名</label>
+                <input type="text" id="new-prop-name" placeholder="例：〇〇ハイツ">
 
-            <div class="stamp-config-box">
-                <div class="stamp-grid-inputs">
+                <div class="grid-2">
                     <div>
-                        <label for="stamp-building-name">物件名（共有・保存用）</label>
-                        <input type="text" id="stamp-building-name" placeholder="例：〇〇ハイツ">
+                        <label for="new-prop-floors">階数</label>
+                        <input type="number" id="new-prop-floors" min="1" max="60" value="3">
                     </div>
                     <div>
-                        <label for="stamp-floors">階数</label>
-                        <input type="number" id="stamp-floors" min="1" max="60" value="3">
-                    </div>
-                    <div>
-                        <label for="stamp-units">1フロアの戸数</label>
-                        <input type="number" id="stamp-units" min="1" max="30" value="6">
+                        <label for="new-prop-units">1フロアの戸数</label>
+                        <input type="number" id="new-prop-units" min="1" max="30" value="6">
                     </div>
                 </div>
 
                 <div class="exclude-options">
                     <label>
-                        <input type="checkbox" id="exclude-4"> 4号室を除く
+                        <input type="checkbox" id="new-prop-ex4"> 4号室を除く
                     </label>
                     <label>
-                        <input type="checkbox" id="exclude-9"> 9号室を除く
+                        <input type="checkbox" id="new-prop-ex9"> 9号室を除く
                     </label>
                 </div>
 
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" class="btn-success" onclick="buildAndSaveStampSheet()">表を作成する・更新</button>
-                    <button type="button" class="btn-secondary" onclick="copyStampShareUrl()">🔗 共有用URLをコピー</button>
-                    <button type="button" class="btn-secondary" onclick="window.print()">🖨️ 印刷 / PDF</button>
-                </div>
-                <p id="stamp-share-status" style="margin: 8px 0 0 0; font-size: 13px; color: #27ae60; font-weight: bold;"></p>
+                <button type="button" class="btn-success" onclick="saveNewProperty()">物件を保存する</button>
             </div>
+        </div>
+
+        <!-- 物件詳細画面（部屋番号・指定時間メインの時間別表示） -->
+        <div id="section-property-detail" class="hidden">
+            <div class="top-bar">
+                <h2 id="detail-property-title">🏢 物件詳細</h2>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn-success" onclick="openStampForCurrentProperty()">📋 この建物情報に応じた印取り表</button>
+                    <button type="button" class="btn-secondary" onclick="switchTab('dashboard')">← 予定管理に戻る</button>
+                </div>
+            </div>
+            <p id="detail-property-meta" style="color: #475569; font-size: 14px;"></p>
+            <div id="detail-schedule-list">
+                <p>データを読み込み中...</p>
+            </div>
+        </div>
+
+        <!-- 2. 印取り用紙画面（サイン欄は別ページへ移動、右端は備考） -->
+        <div id="section-stamp" class="hidden">
+            <div class="top-bar">
+                <h2>📝 印取り用紙</h2>
+                <button type="button" class="btn-secondary" id="stamp-back-detail-btn" class="hidden" onclick="backToPropertyDetail()">← 物件詳細に戻る</button>
+            </div>
+            <p>左側に部屋番号、上部に時間指定・備考を表示しています。入力フォームから送信された指定時間・メモが反映され、サインは別ページで記入できます。</p>
+
+            <div class="stamp-toolbar">
+                <button type="button" class="btn-secondary" onclick="copyStampShareUrl()">🔗 共有用URLをコピー</button>
+                <button type="button" class="btn-secondary" onclick="window.print()">🖨️ 印刷 / PDF</button>
+            </div>
+            <p id="stamp-share-status" style="margin: 0 0 12px 0; font-size: 13px; color: #27ae60; font-weight: bold;"></p>
 
             <div id="stamp-sheet-container">
-                <p>条件を入力して「表を作成する・更新」を押してください。</p>
+                <p>印取り表を読み込み中...</p>
+            </div>
+        </div>
+
+        <!-- サイン記入専用ページ（別画面） -->
+        <div id="section-sign-page" class="hidden">
+            <div class="top-bar">
+                <h2 id="sign-page-title">✍️ サイン記入ページ</h2>
+                <button type="button" class="btn-secondary" onclick="backFromSignPage()">← 印取り用紙に戻る</button>
+            </div>
+            <p id="sign-page-subtitle" style="color: #475569; font-size: 14px;"></p>
+
+            <div class="form-card">
+                <canvas id="sign-canvas" width="520" height="280"></canvas>
+                <div class="modal-actions" style="margin-top: 14px;">
+                    <button type="button" class="btn-secondary" onclick="clearSignCanvas()">書き直し（クリア）</button>
+                    <button type="button" class="btn-success" onclick="saveSignaturePage()">サインを保存して戻る</button>
+                </div>
+
+                <div class="sign-preview-box">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">現在の登録サイン</div>
+                    <img id="current-saved-sign-preview" class="sign-preview-large hidden" alt="登録済みサイン">
+                    <span id="no-saved-sign-text" style="font-size: 13px; color: #94a3b8;">未登録</span>
+                </div>
             </div>
         </div>
 
@@ -444,35 +573,33 @@
         <div id="section-qr" class="hidden">
             <h2>📱 QRコード作成 ＆ 入力フォーム</h2>
             <p id="form-description">ここに表示されるQRコードをスマホ等で読み取ると、お客様やスタッフが直接データを入力・送信できます。</p>
-            
-            <!-- QRコード生成セクション（管理画面のみ表示） -->
+
             <div id="qr-generator-section" style="background: #eef2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">🖨️ QRコード発行</h3>
                 <label>QRコードに埋め込むURL（スマホ受信用：自動で ?form=open が付与されます）</label>
                 <input type="text" id="qr-text-input" placeholder="URLを入力">
                 <button onclick="generateQRCode()">QRコードを作成する</button>
-                
+
                 <div id="qr-result-area" class="qr-box hidden">
                     <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">このQRコードをスマホで読み取ると、ログインなしで下の入力フォームが開きます</p>
                     <img id="qr-image" src="" alt="QRコード">
                 </div>
             </div>
 
-            <!-- 入力フォーム -->
             <div style="background: #fafafa; padding: 15px; border: 1px dashed #ccc; border-radius: 6px;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">✍️ 入力フォーム</h3>
                 <label>建物名</label>
                 <input type="text" id="input-building" placeholder="例：〇〇ハイツ">
-                
+
                 <label>部屋番号</label>
                 <input type="text" id="input-room" placeholder="例：201号室">
-                
+
                 <label>お名前</label>
                 <input type="text" id="input-name" placeholder="例：山田 太郎">
-                
+
                 <label>連絡先</label>
                 <input type="text" id="input-contact" placeholder="例：090-0000-0000">
-                
+
                 <label>希望時間</label>
                 <select id="input-time">
                     <option value="">時間を選択してください</option>
@@ -481,7 +608,7 @@
 
                 <label>日付も含めて指定したい場合（任意）</label>
                 <input type="date" id="input-date">
-                
+
                 <label>メモ（自由記入）</label>
                 <input type="text" id="input-memo" placeholder="例：9:00〜10:00、1日不在等。">
 
@@ -491,36 +618,23 @@
     </div>
 </div>
 
-<!-- セル拡大・サイン記入モーダル -->
-<div id="cell-modal" class="modal-backdrop hidden">
+<!-- 時間指定編集モーダル -->
+<div id="time-modal" class="modal-backdrop hidden">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 id="modal-title">拡大入力</h3>
-            <button type="button" class="btn-secondary btn-small" onclick="closeCellModal()">✕ 閉じる</button>
+            <h3 id="time-modal-title">時間指定の編集</h3>
+            <button type="button" class="btn-secondary btn-small" onclick="closeTimeModal()">✕ 閉じる</button>
         </div>
-
-        <div id="modal-sign-area">
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #475569;">枠内に指やペンで大きくサインを書いてください。</p>
-            <canvas id="sign-canvas" width="480" height="260"></canvas>
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" onclick="clearSignCanvas()">書き直し（クリア）</button>
-                <button type="button" class="btn-success" onclick="saveModalData()">サインを保存</button>
-            </div>
-        </div>
-
-        <div id="modal-time-area" class="hidden">
-            <label for="modal-time-input">時間指定（例：10:00、13:30〜14:00 など）</label>
-            <input type="text" id="modal-time-input" placeholder="時間指定を入力">
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" onclick="clearTimeInput()">消去</button>
-                <button type="button" class="btn-success" onclick="saveModalData()">保存する</button>
-            </div>
+        <label for="time-modal-input">時間指定</label>
+        <input type="text" id="time-modal-input" placeholder="例：10:00、13:30〜14:00">
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="document.getElementById('time-modal-input').value=''">消去</button>
+            <button type="button" class="btn-success" onclick="saveTimeModal()">保存する</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- Firebaseの設定 ---
     const firebaseConfig = {
         apiKey: "AIzaSyCSh_34ovceOntnl60LqBX4n0o1rYFvro",
         authDomain: "huzairennrakuyou.firebaseapp.com",
@@ -535,24 +649,26 @@
     const db = firebase.firestore();
 
     let schedules = [];
+    let properties = []; // { id, name, floors, units, exclude4, exclude9 }
     let propertyOrder = [];
     let openRenameBuilding = null;
-
-    // 印取り用紙の状態
+    let selectedBuildingName = null;
     let currentStampSheetId = "default-sheet";
+
     let stampSheetData = {
         buildingName: "",
         floors: 3,
         units: 6,
         exclude4: false,
         exclude9: false,
-        rows: {} // { "101": { sign1: "data:image/...", timeSpec: "", sign2: "" } }
+        rows: {} // { "101": { timeSpec: "", remark: "", sign: "" } }
     };
 
-    // モーダル編集対象
-    let editingTarget = null; // { room, field: 'sign1' | 'timeSpec' | 'sign2' }
+    let editingTimeRoom = null;
+    let editingSignRoom = null;
     let isDrawing = false;
     let hasDrawnStroke = false;
+    let isAuthenticated = false;
 
     window.onload = function() {
         generateTimeOptions();
@@ -570,8 +686,7 @@
             document.getElementById('nav-tabs-container').classList.add('hidden');
             document.getElementById('qr-generator-section').classList.add('hidden');
             document.getElementById('form-description').innerText = "必要事項を入力して送信してください。";
-            document.getElementById('section-dashboard').classList.add('hidden');
-            document.getElementById('section-stamp').classList.add('hidden');
+            hideAllSections();
             document.getElementById('section-qr').classList.remove('hidden');
         } else {
             if (window.location.protocol.startsWith('http')) {
@@ -583,14 +698,29 @@
             }
             generateQRCode();
 
-            // 共有URLから印取り用紙を開いた場合はログイン後すぐに印取り用紙を表示できるよう準備
             if (sheetParam) {
+                isAuthenticated = true;
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('main-screen').classList.remove('hidden');
+                startAllListeners();
                 switchTab('stamp');
             }
         }
     };
+
+    function hideAllSections() {
+        [
+            'section-dashboard',
+            'section-property-add',
+            'section-property-detail',
+            'section-stamp',
+            'section-sign-page',
+            'section-qr'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+    }
 
     function generateTimeOptions() {
         const select = document.getElementById('input-time');
@@ -600,11 +730,9 @@
         for (let h = startHour; h <= endHour; h++) {
             for (let m = 0; m < 60; m += 15) {
                 if (h === endHour && m > 0) break;
-
                 const hourStr = String(h).padStart(2, '0');
                 const minStr = String(m).padStart(2, '0');
                 const timeStr = `${hourStr}:${minStr}`;
-
                 const option = document.createElement('option');
                 option.value = timeStr;
                 option.textContent = timeStr;
@@ -616,98 +744,469 @@
     function checkPassword() {
         const pass = document.getElementById('password-input').value;
         if (pass === "1234") {
+            isAuthenticated = true;
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
-            startRealtimeListener();
-            startStampRealtimeListener();
+            startAllListeners();
         } else {
             document.getElementById('login-error').innerText = "パスワードが間違っています。";
         }
     }
 
-    function switchTab(tabName) {
-        document.getElementById('section-dashboard').classList.add('hidden');
-        document.getElementById('section-stamp').classList.add('hidden');
-        document.getElementById('section-qr').classList.add('hidden');
+    function startAllListeners() {
+        startRealtimeListener();
+        startPropertiesListener();
+        startStampRealtimeListener();
+    }
 
+    function switchTab(tabName) {
+        hideAllSections();
         document.getElementById('tab-dashboard').classList.remove('active');
         document.getElementById('tab-stamp').classList.remove('active');
         document.getElementById('tab-qr').classList.remove('active');
 
+        const backBtn = document.getElementById('stamp-back-detail-btn');
+        if (backBtn) backBtn.classList.add('hidden');
+
         if (tabName === 'dashboard') {
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('tab-dashboard').classList.add('active');
-            startRealtimeListener();
+            renderDashboard();
         } else if (tabName === 'stamp') {
             document.getElementById('section-stamp').classList.remove('hidden');
             document.getElementById('tab-stamp').classList.add('active');
-            startStampRealtimeListener();
+            if (selectedBuildingName && backBtn) {
+                backBtn.classList.remove('hidden');
+            }
+            renderStampTable();
         } else {
             document.getElementById('section-qr').classList.remove('hidden');
             document.getElementById('tab-qr').classList.add('active');
         }
     }
 
-    // --- 印取り用紙：リアルタイム同期＆生成 ---
+    function openPropertyAddScreen() {
+        hideAllSections();
+        document.getElementById('tab-dashboard').classList.add('active');
+        document.getElementById('tab-stamp').classList.remove('active');
+        document.getElementById('tab-qr').classList.remove('active');
+        document.getElementById('section-property-add').classList.remove('hidden');
+        document.getElementById('new-prop-name').value = '';
+        document.getElementById('new-prop-floors').value = '3';
+        document.getElementById('new-prop-units').value = '6';
+        document.getElementById('new-prop-ex4').checked = false;
+        document.getElementById('new-prop-ex9').checked = false;
+    }
+
+    function saveNewProperty() {
+        const name = document.getElementById('new-prop-name').value.trim();
+        const floors = Math.max(1, Math.min(60, parseInt(document.getElementById('new-prop-floors').value, 10) || 1));
+        const units = Math.max(1, Math.min(30, parseInt(document.getElementById('new-prop-units').value, 10) || 1));
+        const exclude4 = document.getElementById('new-prop-ex4').checked;
+        const exclude9 = document.getElementById('new-prop-ex9').checked;
+
+        if (!name) {
+            alert("物件名を入力してください。");
+            return;
+        }
+
+        const existing = properties.find(p => p.name === name);
+        const docId = existing ? existing.id : ("prop-" + Date.now());
+
+        db.collection("properties").doc(docId).set({
+            name,
+            floors,
+            units,
+            exclude4,
+            exclude9,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).then(() => {
+            if (!propertyOrder.includes(name)) {
+                savePropertyOrder([...propertyOrder, name]);
+            }
+            alert(`物件「${name}」を保存しました。`);
+            switchTab('dashboard');
+        }).catch(err => {
+            console.error("物件保存エラー:", err);
+            alert("保存に失敗しました。");
+        });
+    }
+
+    function startPropertiesListener() {
+        db.collection("properties").onSnapshot((snapshot) => {
+            properties = [];
+            snapshot.forEach((doc) => {
+                const d = doc.data();
+                properties.push({
+                    id: doc.id,
+                    name: d.name || "",
+                    floors: Number(d.floors) || 3,
+                    units: Number(d.units) || 6,
+                    exclude4: Boolean(d.exclude4),
+                    exclude9: Boolean(d.exclude9)
+                });
+            });
+            renderDashboard();
+            if (selectedBuildingName) {
+                renderPropertyDetail();
+            }
+        }, err => console.error("物件取得エラー:", err));
+    }
+
+    function startRealtimeListener() {
+        db.collection("settings").doc("propertyOrder").onSnapshot((doc) => {
+            if (doc.exists && Array.isArray(doc.data().order)) {
+                propertyOrder = doc.data().order;
+            } else {
+                propertyOrder = [];
+            }
+            renderDashboard();
+        }, err => console.error("並び順取得エラー:", err));
+
+        db.collection("schedules").onSnapshot((snapshot) => {
+            schedules = [];
+            snapshot.forEach((doc) => {
+                let data = doc.data();
+                data.id = doc.id;
+                schedules.push(data);
+            });
+            renderDashboard();
+            if (selectedBuildingName) {
+                renderPropertyDetail();
+            }
+            renderStampTable();
+        }, err => console.error("データ取得エラー:", err));
+    }
+
+    function getSortedBuildingNames(grouped) {
+        const currentBuildings = Object.keys(grouped);
+        const ordered = [];
+
+        propertyOrder.forEach(name => {
+            if (currentBuildings.includes(name) && !ordered.includes(name)) {
+                ordered.push(name);
+            }
+        });
+
+        currentBuildings.forEach(name => {
+            if (!ordered.includes(name)) {
+                ordered.push(name);
+            }
+        });
+
+        return ordered;
+    }
+
+    function savePropertyOrder(newOrder) {
+        propertyOrder = newOrder;
+        db.collection("settings").doc("propertyOrder").set({
+            order: newOrder
+        }).catch(err => console.error("並び順保存エラー:", err));
+    }
+
+    function movePropertyUp(buildingName) {
+        const grouped = buildGroupedMap();
+        const list = getSortedBuildingNames(grouped);
+        const idx = list.indexOf(buildingName);
+        if (idx > 0) {
+            [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
+            savePropertyOrder(list);
+            renderDashboard();
+        }
+    }
+
+    function movePropertyDown(buildingName) {
+        const grouped = buildGroupedMap();
+        const list = getSortedBuildingNames(grouped);
+        const idx = list.indexOf(buildingName);
+        if (idx >= 0 && idx < list.length - 1) {
+            [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
+            savePropertyOrder(list);
+            renderDashboard();
+        }
+    }
+
+    function toggleRenameProperty(buildingName) {
+        openRenameBuilding = (openRenameBuilding === buildingName) ? null : buildingName;
+        renderDashboard();
+    }
+
+    function renameProperty(oldName) {
+        const inputEl = document.getElementById(`rename-input-${encodeURIComponent(oldName)}`);
+        if (!inputEl) return;
+        const newName = inputEl.value.trim();
+
+        if (!newName) {
+            alert("新しい物件名を入力してください。");
+            return;
+        }
+        if (oldName === newName) {
+            openRenameBuilding = null;
+            renderDashboard();
+            return;
+        }
+
+        const targets = schedules.filter(item => item.building === oldName);
+        const batch = db.batch();
+        targets.forEach(item => {
+            const ref = db.collection("schedules").doc(item.id);
+            batch.update(ref, { building: newName });
+        });
+
+        const propTarget = properties.find(p => p.name === oldName);
+        if (propTarget) {
+            batch.update(db.collection("properties").doc(propTarget.id), { name: newName });
+        }
+
+        const updatedOrder = [];
+        propertyOrder.forEach(name => {
+            const mapped = (name === oldName) ? newName : name;
+            if (!updatedOrder.includes(mapped)) {
+                updatedOrder.push(mapped);
+            }
+        });
+        if (!updatedOrder.includes(newName)) {
+            updatedOrder.push(newName);
+        }
+
+        batch.commit().then(() => {
+            openRenameBuilding = null;
+            savePropertyOrder(updatedOrder);
+            alert(`「${oldName}」を「${newName}」に変更しました。`);
+        }).catch(err => {
+            console.error("物件名変更エラー:", err);
+            alert("物件名の変更に失敗しました。");
+        });
+    }
+
+    function buildGroupedMap() {
+        const grouped = {};
+        properties.forEach(p => {
+            if (p.name && !grouped[p.name]) {
+                grouped[p.name] = [];
+            }
+        });
+        schedules.forEach(item => {
+            if (!item.building) return;
+            if (!grouped[item.building]) {
+                grouped[item.building] = [];
+            }
+            grouped[item.building].push(item);
+        });
+        return grouped;
+    }
+
+    function getPropertyConfig(buildingName) {
+        const found = properties.find(p => p.name === buildingName);
+        if (found) return found;
+        return {
+            id: null,
+            name: buildingName,
+            floors: 3,
+            units: 6,
+            exclude4: false,
+            exclude9: false
+        };
+    }
+
+    function renderDashboard() {
+        const container = document.getElementById('property-list-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const grouped = buildGroupedMap();
+        const sortedBuildings = getSortedBuildingNames(grouped);
+
+        if (sortedBuildings.length === 0) {
+            container.innerHTML = '<p>登録されている物件・予定はありません。「＋ 物件追加」または「テストデータをクラウドに追加」から追加してください。</p>';
+            return;
+        }
+
+        sortedBuildings.forEach((building, index) => {
+            const items = grouped[building] || [];
+            const propCfg = getPropertyConfig(building);
+            const isFirst = index === 0;
+            const isLast = index === sortedBuildings.length - 1;
+            const isRenaming = openRenameBuilding === building;
+            const encodedBuilding = encodeURIComponent(building);
+            const escapedAttrBuilding = building.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+            const exLabels = [];
+            if (propCfg.exclude4) exLabels.push("4号室除");
+            if (propCfg.exclude9) exLabels.push("9号室除");
+            const exText = exLabels.length ? ` / ${exLabels.join("・")}` : "";
+
+            let renameHtml = '';
+            if (isRenaming) {
+                renameHtml = `
+                    <div class="rename-area">
+                        <input type="text" id="rename-input-${encodedBuilding}" value="${escapedAttrBuilding}" placeholder="統一したい物件名を入力">
+                        <button class="btn-small" onclick="renameProperty('${escapedAttrBuilding}')">確定</button>
+                        <button class="btn-secondary btn-small" onclick="toggleRenameProperty('${escapedAttrBuilding}')">取消</button>
+                    </div>
+                `;
+            }
+
+            const folderDiv = document.createElement('div');
+            folderDiv.className = 'property-folder';
+            folderDiv.innerHTML = `
+                <div class="folder-header">
+                    <div>
+                        <button type="button" class="folder-title-btn" onclick="openPropertyDetail('${escapedAttrBuilding}')">
+                            📁 ${escapeHtml(building)} (${items.length}件)
+                        </button>
+                        <div class="folder-meta">${propCfg.floors}階 × ${propCfg.units}戸${exText}（タッチで時間別一覧を表示）</div>
+                    </div>
+                    <div class="folder-actions">
+                        <button class="btn-secondary btn-small" onclick="movePropertyUp('${escapedAttrBuilding}')" ${isFirst ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="上へ移動">↑</button>
+                        <button class="btn-secondary btn-small" onclick="movePropertyDown('${escapedAttrBuilding}')" ${isLast ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="下へ移動">↓</button>
+                        <button class="btn-secondary btn-small" onclick="toggleRenameProperty('${escapedAttrBuilding}')">✏️ 物件名変更</button>
+                        <button class="btn-danger" onclick="deleteProperty('${escapedAttrBuilding}')">📁 まるごと削除</button>
+                    </div>
+                    ${renameHtml}
+                </div>
+            `;
+            container.appendChild(folderDiv);
+        });
+    }
+
+    function openPropertyDetail(buildingName) {
+        selectedBuildingName = buildingName;
+        hideAllSections();
+        document.getElementById('tab-dashboard').classList.add('active');
+        document.getElementById('tab-stamp').classList.remove('active');
+        document.getElementById('tab-qr').classList.remove('active');
+        document.getElementById('section-property-detail').classList.remove('hidden');
+        renderPropertyDetail();
+    }
+
+    function backToPropertyDetail() {
+        if (selectedBuildingName) {
+            openPropertyDetail(selectedBuildingName);
+        } else {
+            switchTab('dashboard');
+        }
+    }
+
+    function renderPropertyDetail() {
+        if (!selectedBuildingName) return;
+        const propCfg = getPropertyConfig(selectedBuildingName);
+        document.getElementById('detail-property-title').innerText = `🏢 ${selectedBuildingName}`;
+        const exText = [
+            propCfg.exclude4 ? "4号室を除く" : "",
+            propCfg.exclude9 ? "9号室を除く" : ""
+        ].filter(Boolean).join(" / ");
+        document.getElementById('detail-property-meta').innerText =
+            `建物情報：${propCfg.floors}階 × 1フロア${propCfg.units}戸${exText ? `（${exText}）` : ""} ｜ 指定時間順に並んでいます`;
+
+        const listEl = document.getElementById('detail-schedule-list');
+        const items = schedules
+            .filter(s => s.building === selectedBuildingName)
+            .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+
+        if (items.length === 0) {
+            listEl.innerHTML = '<p>この物件に送信された予定データはまだありません。</p>';
+            return;
+        }
+
+        listEl.innerHTML = items.map(sch => {
+            const timeLabel = sch.time ? `⏰ ${escapeHtml(sch.time)}` : '⏰ 時間未設定';
+            const dateLabel = sch.date ? `（${escapeHtml(sch.date)}）` : '';
+            const memoText = sch.memo ? sch.memo : '（メモなし）';
+            return `
+                <div class="schedule-item" id="item-${sch.id}">
+                    <div class="schedule-main">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <span class="time-highlight">${timeLabel}${dateLabel}</span>
+                            <span class="room-highlight">${escapeHtml(sch.room)}</span>
+                        </div>
+                        <button class="btn-danger btn-small" onclick="deleteSchedule('${sch.id}')">🗑️ 削除</button>
+                    </div>
+                    <div class="sub-info">
+                        お名前：${escapeHtml(sch.name || '-')}様 ／ 連絡先：${escapeHtml(sch.contact || '-')}
+                    </div>
+                    <div class="memo-section">
+                        <strong>📝 メモ:</strong> <span id="memo-text-${sch.id}">${escapeHtml(memoText)}</span>
+                        <div style="margin-top: 4px;">
+                            <button class="btn-small" style="background-color: #7f8c8d;" onclick="toggleMemoEdit('${sch.id}')">✏️ メモ編集</button>
+                        </div>
+                        <div id="memo-edit-${sch.id}" class="memo-input-area hidden">
+                            <input type="text" id="memo-input-${sch.id}" value="${escapeAttr(sch.memo || '')}" placeholder="メモを入力...">
+                            <button class="btn-small" onclick="saveMemo('${sch.id}')">保存</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function openStampForCurrentProperty() {
+        if (!selectedBuildingName) return;
+        const propCfg = getPropertyConfig(selectedBuildingName);
+        const safeId = "prop-" + encodeURIComponent(selectedBuildingName);
+        currentStampSheetId = safeId;
+
+        stampSheetData.buildingName = selectedBuildingName;
+        stampSheetData.floors = propCfg.floors;
+        stampSheetData.units = propCfg.units;
+        stampSheetData.exclude4 = propCfg.exclude4;
+        stampSheetData.exclude9 = propCfg.exclude9;
+
+        syncSchedulesIntoStampRows(selectedBuildingName);
+
+        db.collection("stampSheets").doc(currentStampSheetId).set(stampSheetData, { merge: true })
+            .catch(err => console.error("印取り用紙初期化エラー:", err));
+
+        startStampRealtimeListener();
+        switchTab('stamp');
+    }
+
+    function normalizeRoomKey(roomStr) {
+        if (!roomStr) return "";
+        return String(roomStr).replace(/号室/g, "").trim();
+    }
+
+    function syncSchedulesIntoStampRows(buildingName) {
+        const targetItems = schedules.filter(s => s.building === buildingName);
+        targetItems.forEach(sch => {
+            const key = normalizeRoomKey(sch.room);
+            if (!key) return;
+            if (!stampSheetData.rows[key]) {
+                stampSheetData.rows[key] = { timeSpec: "", remark: "", sign: "" };
+            }
+            if (sch.time) {
+                const timeStr = sch.date ? `${sch.date} ${sch.time}` : sch.time;
+                if (!stampSheetData.rows[key].timeSpec) {
+                    stampSheetData.rows[key].timeSpec = timeStr;
+                }
+            }
+            if (sch.memo && !stampSheetData.rows[key].remark) {
+                stampSheetData.rows[key].remark = sch.memo;
+            }
+        });
+    }
+
     function startStampRealtimeListener() {
         db.collection("stampSheets").doc(currentStampSheetId).onSnapshot((doc) => {
             if (doc.exists) {
                 const d = doc.data();
                 stampSheetData = {
-                    buildingName: d.buildingName || "",
-                    floors: Number(d.floors) || 3,
-                    units: Number(d.units) || 6,
+                    buildingName: d.buildingName || stampSheetData.buildingName || "",
+                    floors: Number(d.floors) || stampSheetData.floors || 3,
+                    units: Number(d.units) || stampSheetData.units || 6,
                     exclude4: Boolean(d.exclude4),
                     exclude9: Boolean(d.exclude9),
                     rows: d.rows || {}
                 };
-                syncStampInputsFromState();
+            }
+            if (stampSheetData.buildingName) {
+                syncSchedulesIntoStampRows(stampSheetData.buildingName);
             }
             renderStampTable();
-        }, (error) => {
-            console.error("印取り用紙取得エラー: ", error);
+        }, err => {
+            console.error("印取り用紙取得エラー:", err);
             renderStampTable();
         });
-    }
-
-    function syncStampInputsFromState() {
-        const bInput = document.getElementById('stamp-building-name');
-        const fInput = document.getElementById('stamp-floors');
-        const uInput = document.getElementById('stamp-units');
-        const ex4 = document.getElementById('exclude-4');
-        const ex9 = document.getElementById('exclude-9');
-
-        if (document.activeElement !== bInput) bInput.value = stampSheetData.buildingName || "";
-        if (document.activeElement !== fInput) fInput.value = stampSheetData.floors;
-        if (document.activeElement !== uInput) uInput.value = stampSheetData.units;
-        if (document.activeElement !== ex4) ex4.checked = stampSheetData.exclude4;
-        if (document.activeElement !== ex9) ex9.checked = stampSheetData.exclude9;
-    }
-
-    function buildAndSaveStampSheet() {
-        const buildingName = document.getElementById('stamp-building-name').value.trim();
-        const floors = Math.max(1, Math.min(60, parseInt(document.getElementById('stamp-floors').value, 10) || 1));
-        const units = Math.max(1, Math.min(30, parseInt(document.getElementById('stamp-units').value, 10) || 1));
-        const exclude4 = document.getElementById('exclude-4').checked;
-        const exclude9 = document.getElementById('exclude-9').checked;
-
-        stampSheetData.buildingName = buildingName;
-        stampSheetData.floors = floors;
-        stampSheetData.units = units;
-        stampSheetData.exclude4 = exclude4;
-        stampSheetData.exclude9 = exclude9;
-
-        db.collection("stampSheets").doc(currentStampSheetId).set(stampSheetData, { merge: true })
-            .then(() => {
-                renderStampTable();
-                const statusEl = document.getElementById('stamp-share-status');
-                statusEl.innerText = "印取り用紙を保存・更新しました。";
-                setTimeout(() => { statusEl.innerText = ""; }, 3000);
-            })
-            .catch((err) => {
-                console.error("印取り用紙保存エラー:", err);
-                alert("保存に失敗しました。");
-            });
     }
 
     function generateRoomList() {
@@ -719,10 +1218,8 @@
             for (let u = 1; u <= units; u++) {
                 if (stampSheetData.exclude4 && u === 4) continue;
                 if (stampSheetData.exclude9 && u === 9) continue;
-
                 const unitStr = units >= 10 ? String(u).padStart(2, '0') : String(u);
-                const roomNo = `${f}${unitStr}`;
-                rooms.push(roomNo);
+                rooms.push(`${f}${unitStr}`);
             }
         }
         return rooms;
@@ -733,50 +1230,56 @@
         if (!container) return;
 
         const rooms = generateRoomList();
-        if (rooms.length === 0) {
-            container.innerHTML = '<p>表示できる部屋番号がありません。除外設定を見直してください。</p>';
-            return;
-        }
-
-        const titleText = stampSheetData.buildingName
+        const titleHtml = stampSheetData.buildingName
             ? `<h3 style="margin: 0 0 10px 0; color: var(--primary-color);">🏢 ${escapeHtml(stampSheetData.buildingName)}（全${rooms.length}戸）</h3>`
             : `<h3 style="margin: 0 0 10px 0; color: var(--primary-color);">📋 印取り表（全${rooms.length}戸）</h3>`;
 
-        let rowsHtml = '';
-        rooms.forEach(room => {
+        const rowsHtml = rooms.map(room => {
             const rowData = (stampSheetData.rows && stampSheetData.rows[room]) ? stampSheetData.rows[room] : {};
-            const sign1Html = rowData.sign1
-                ? `<img class="sign-preview" src="${rowData.sign1}" alt="${room} サイン1">`
-                : `<span class="cell-placeholder">タッチでサイン</span>`;
-            const timeHtml = rowData.timeSpec
-                ? `<span class="time-cell-text">${escapeHtml(rowData.timeSpec)}</span>`
-                : `<span class="cell-placeholder">時間指定</span>`;
-            const sign2Html = rowData.sign2
-                ? `<img class="sign-preview" src="${rowData.sign2}" alt="${room} サイン2">`
-                : `<span class="cell-placeholder">タッチでサイン</span>`;
-
+            const timeSpec = rowData.timeSpec || "";
+            const remark = rowData.remark || "";
+            const hasSign = Boolean(rowData.sign);
             const escapedRoom = room.replace(/'/g, "\\'");
 
-            rowsHtml += `
+            return `
                 <tr>
                     <td class="room-col">${room}号室</td>
-                    <td class="touch-cell" onclick="openCellModal('${escapedRoom}', 'sign1')">${sign1Html}</td>
-                    <td class="touch-cell" onclick="openCellModal('${escapedRoom}', 'timeSpec')">${timeHtml}</td>
-                    <td class="touch-cell" onclick="openCellModal('${escapedRoom}', 'sign2')">${sign2Html}</td>
+                    <td>
+                        <div class="time-cell-box" onclick="openTimeModal('${escapedRoom}')">
+                            ${timeSpec
+                                ? `<span class="time-badge-pill">⏰ ${escapeHtml(timeSpec)}</span>`
+                                : `<span style="color:#94a3b8;font-size:12px;">タッチで時間指定</span>`}
+                        </div>
+                    </td>
+                    <td class="remark-cell">
+                        <div class="remark-text">${remark ? escapeHtml(remark) : '<span style="color:#94a3b8;font-size:12px;">（メモなし）</span>'}</div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button type="button" class="btn-secondary btn-small" onclick="openSignPage('${escapedRoom}')">✍️ サインページへ</button>
+                            <button type="button" class="btn-small" style="background:#475569;" onclick="toggleRemarkEdit('${escapedRoom}')">📝 備考</button>
+                        </div>
+                        <div style="margin-top: 4px;">
+                            ${hasSign
+                                ? `<span class="sign-status-done">✓ サイン済</span>`
+                                : `<span class="sign-status-empty">サイン未記入</span>`}
+                        </div>
+                        <div id="remark-edit-${room}" class="memo-input-area hidden">
+                            <input type="text" id="remark-input-${room}" value="${escapeAttr(remark)}" placeholder="備考メモを入力...">
+                            <button type="button" class="btn-small" onclick="saveRemark('${escapedRoom}')">保存</button>
+                        </div>
+                    </td>
                 </tr>
             `;
-        });
+        }).join('');
 
         container.innerHTML = `
-            ${titleText}
+            ${titleHtml}
             <div class="table-wrap">
                 <table class="stamp-table">
                     <thead>
                         <tr>
                             <th>部屋番号</th>
-                            <th>サイン</th>
                             <th>時間指定</th>
-                            <th>サイン</th>
+                            <th>備考</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -787,36 +1290,76 @@
         `;
     }
 
-    // --- 拡大モーダル＆サイン描画 ---
-    function openCellModal(room, field) {
-        editingTarget = { room, field };
-        const modal = document.getElementById('cell-modal');
-        const title = document.getElementById('modal-title');
-        const signArea = document.getElementById('modal-sign-area');
-        const timeArea = document.getElementById('modal-time-area');
-
-        const fieldLabel = field === 'timeSpec' ? '時間指定' : (field === 'sign1' ? 'サイン（左）' : 'サイン（右）');
-        title.innerText = `${room}号室 - ${fieldLabel}`;
-
-        modal.classList.remove('hidden');
-
-        const existing = (stampSheetData.rows && stampSheetData.rows[room]) ? stampSheetData.rows[room][field] : "";
-
-        if (field === 'timeSpec') {
-            signArea.classList.add('hidden');
-            timeArea.classList.remove('hidden');
-            document.getElementById('modal-time-input').value = existing || "";
-        } else {
-            timeArea.classList.add('hidden');
-            signArea.classList.remove('hidden');
-            loadExistingSignatureToCanvas(existing);
-        }
+    function openTimeModal(room) {
+        editingTimeRoom = room;
+        const current = (stampSheetData.rows && stampSheetData.rows[room]) ? (stampSheetData.rows[room].timeSpec || "") : "";
+        document.getElementById('time-modal-title').innerText = `${room}号室 - 時間指定`;
+        document.getElementById('time-modal-input').value = current;
+        document.getElementById('time-modal').classList.remove('hidden');
     }
 
-    function closeCellModal() {
-        document.getElementById('cell-modal').classList.add('hidden');
-        editingTarget = null;
+    function closeTimeModal() {
+        document.getElementById('time-modal').classList.add('hidden');
+        editingTimeRoom = null;
+    }
+
+    function saveTimeModal() {
+        if (!editingTimeRoom) return;
+        const val = document.getElementById('time-modal-input').value.trim();
+        if (!stampSheetData.rows[editingTimeRoom]) {
+            stampSheetData.rows[editingTimeRoom] = { timeSpec: "", remark: "", sign: "" };
+        }
+        stampSheetData.rows[editingTimeRoom].timeSpec = val;
+        persistStampSheet();
+        closeTimeModal();
+    }
+
+    function toggleRemarkEdit(room) {
+        const el = document.getElementById(`remark-edit-${room}`);
+        if (el) el.classList.toggle('hidden');
+    }
+
+    function saveRemark(room) {
+        const inputEl = document.getElementById(`remark-input-${room}`);
+        if (!inputEl) return;
+        if (!stampSheetData.rows[room]) {
+            stampSheetData.rows[room] = { timeSpec: "", remark: "", sign: "" };
+        }
+        stampSheetData.rows[room].remark = inputEl.value.trim();
+        persistStampSheet();
+    }
+
+    function openSignPage(room) {
+        editingSignRoom = room;
+        hideAllSections();
+        document.getElementById('section-sign-page').classList.remove('hidden');
+        document.getElementById('sign-page-title').innerText = `✍️ ${room}号室 サイン記入ページ`;
+        document.getElementById('sign-page-subtitle').innerText =
+            stampSheetData.buildingName ? `物件：${stampSheetData.buildingName}` : "印取り用紙サイン";
+
+        const existingSign = (stampSheetData.rows && stampSheetData.rows[room]) ? (stampSheetData.rows[room].sign || "") : "";
+        loadExistingSignatureToCanvas(existingSign);
+        updateSavedSignPreview(existingSign);
+    }
+
+    function backFromSignPage() {
+        editingSignRoom = null;
         isDrawing = false;
+        switchTab('stamp');
+    }
+
+    function updateSavedSignPreview(dataUrl) {
+        const img = document.getElementById('current-saved-sign-preview');
+        const emptyText = document.getElementById('no-saved-sign-text');
+        if (dataUrl) {
+            img.src = dataUrl;
+            img.classList.remove('hidden');
+            emptyText.classList.add('hidden');
+        } else {
+            img.src = "";
+            img.classList.add('hidden');
+            emptyText.classList.remove('hidden');
+        }
     }
 
     function loadExistingSignatureToCanvas(dataUrl) {
@@ -844,10 +1387,6 @@
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         hasDrawnStroke = false;
-    }
-
-    function clearTimeInput() {
-        document.getElementById('modal-time-input').value = "";
     }
 
     function initCanvasEvents() {
@@ -903,27 +1442,21 @@
         window.addEventListener('touchend', endDraw, { passive: false });
     }
 
-    function saveModalData() {
-        if (!editingTarget) return;
-        const { room, field } = editingTarget;
+    function saveSignaturePage() {
+        if (!editingSignRoom) return;
+        const canvas = document.getElementById('sign-canvas');
+        const dataUrl = hasDrawnStroke ? canvas.toDataURL("image/png") : "";
 
-        if (!stampSheetData.rows[room]) {
-            stampSheetData.rows[room] = {};
+        if (!stampSheetData.rows[editingSignRoom]) {
+            stampSheetData.rows[editingSignRoom] = { timeSpec: "", remark: "", sign: "" };
         }
+        stampSheetData.rows[editingSignRoom].sign = dataUrl;
+        updateSavedSignPreview(dataUrl);
+        persistStampSheet();
+        backFromSignPage();
+    }
 
-        let valueToSave = "";
-        if (field === 'timeSpec') {
-            valueToSave = document.getElementById('modal-time-input').value.trim();
-        } else {
-            const canvas = document.getElementById('sign-canvas');
-            valueToSave = hasDrawnStroke ? canvas.toDataURL("image/png") : "";
-        }
-
-        stampSheetData.rows[room][field] = valueToSave;
-
-        const updateObj = {};
-        updateObj[`rows.${room}.${field}`] = valueToSave;
-
+    function persistStampSheet() {
         db.collection("stampSheets").doc(currentStampSheetId).set({
             buildingName: stampSheetData.buildingName || "",
             floors: stampSheetData.floors,
@@ -933,11 +1466,9 @@
             rows: stampSheetData.rows
         }, { merge: true }).then(() => {
             renderStampTable();
-            closeCellModal();
-        }).catch((err) => {
-            console.error("セル保存エラー:", err);
+        }).catch(err => {
+            console.error("印取り用紙保存エラー:", err);
             renderStampTable();
-            closeCellModal();
         });
     }
 
@@ -957,239 +1488,6 @@
         } else {
             prompt("共有用URLはこちらです:", shareUrl);
         }
-    }
-
-    function escapeHtml(str) {
-        return String(str)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    // --- 既存の予定管理リアルタイム同期 ---
-    function startRealtimeListener() {
-        db.collection("settings").doc("propertyOrder").onSnapshot((doc) => {
-            if (doc.exists && Array.isArray(doc.data().order)) {
-                propertyOrder = doc.data().order;
-            } else {
-                propertyOrder = [];
-            }
-            renderDashboard();
-        }, (error) => {
-            console.error("並び順取得エラー: ", error);
-        });
-
-        db.collection("schedules").onSnapshot((snapshot) => {
-            schedules = [];
-            snapshot.forEach((doc) => {
-                let data = doc.data();
-                data.id = doc.id;
-                schedules.push(data);
-            });
-            renderDashboard();
-        }, (error) => {
-            console.error("データ取得エラー: ", error);
-        });
-    }
-
-    function getSortedBuildingNames(grouped) {
-        const currentBuildings = Object.keys(grouped);
-        const ordered = [];
-
-        propertyOrder.forEach(name => {
-            if (currentBuildings.includes(name) && !ordered.includes(name)) {
-                ordered.push(name);
-            }
-        });
-
-        currentBuildings.forEach(name => {
-            if (!ordered.includes(name)) {
-                ordered.push(name);
-            }
-        });
-
-        return ordered;
-    }
-
-    function savePropertyOrder(newOrder) {
-        propertyOrder = newOrder;
-        db.collection("settings").doc("propertyOrder").set({
-            order: newOrder
-        }).catch((error) => {
-            console.error("並び順保存エラー: ", error);
-        });
-    }
-
-    function movePropertyUp(buildingName) {
-        const grouped = {};
-        schedules.forEach(item => {
-            if (!grouped[item.building]) grouped[item.building] = [];
-            grouped[item.building].push(item);
-        });
-        const list = getSortedBuildingNames(grouped);
-        const idx = list.indexOf(buildingName);
-        if (idx > 0) {
-            [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
-            savePropertyOrder(list);
-            renderDashboard();
-        }
-    }
-
-    function movePropertyDown(buildingName) {
-        const grouped = {};
-        schedules.forEach(item => {
-            if (!grouped[item.building]) grouped[item.building] = [];
-            grouped[item.building].push(item);
-        });
-        const list = getSortedBuildingNames(grouped);
-        const idx = list.indexOf(buildingName);
-        if (idx >= 0 && idx < list.length - 1) {
-            [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
-            savePropertyOrder(list);
-            renderDashboard();
-        }
-    }
-
-    function toggleRenameProperty(buildingName) {
-        openRenameBuilding = (openRenameBuilding === buildingName) ? null : buildingName;
-        renderDashboard();
-    }
-
-    function renameProperty(oldName) {
-        const inputEl = document.getElementById(`rename-input-${encodeURIComponent(oldName)}`);
-        if (!inputEl) return;
-        const newName = inputEl.value.trim();
-
-        if (!newName) {
-            alert("新しい物件名を入力してください。");
-            return;
-        }
-        if (oldName === newName) {
-            openRenameBuilding = null;
-            renderDashboard();
-            return;
-        }
-
-        const targets = schedules.filter(item => item.building === oldName);
-        const batch = db.batch();
-        targets.forEach(item => {
-            const ref = db.collection("schedules").doc(item.id);
-            batch.update(ref, { building: newName });
-        });
-
-        const updatedOrder = [];
-        propertyOrder.forEach(name => {
-            const mapped = (name === oldName) ? newName : name;
-            if (!updatedOrder.includes(mapped)) {
-                updatedOrder.push(mapped);
-            }
-        });
-        if (!updatedOrder.includes(newName)) {
-            updatedOrder.push(newName);
-        }
-
-        batch.commit().then(() => {
-            openRenameBuilding = null;
-            savePropertyOrder(updatedOrder);
-            alert(`「${oldName}」を「${newName}」に変更しました。`);
-        }).catch((error) => {
-            console.error("物件名変更エラー: ", error);
-            alert("物件名の変更に失敗しました。");
-        });
-    }
-
-    function renderDashboard() {
-        const container = document.getElementById('property-list-container');
-        if (!container) return;
-        container.innerHTML = '';
-
-        if (schedules.length === 0) {
-            container.innerHTML = '<p>登録されている予定はありません。「テストデータをクラウドに追加」または入力フォームから追加してください。</p>';
-            return;
-        }
-
-        const grouped = {};
-        schedules.forEach(item => {
-            if (!grouped[item.building]) {
-                grouped[item.building] = [];
-            }
-            grouped[item.building].push(item);
-        });
-
-        const sortedBuildings = getSortedBuildingNames(grouped);
-
-        sortedBuildings.forEach((building, index) => {
-            grouped[building].sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-
-            let folderDiv = document.createElement('div');
-            folderDiv.className = 'property-folder';
-
-            const isFirst = index === 0;
-            const isLast = index === sortedBuildings.length - 1;
-            const isRenaming = openRenameBuilding === building;
-            const encodedBuilding = encodeURIComponent(building);
-            const escapedAttrBuilding = building.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-
-            let renameHtml = '';
-            if (isRenaming) {
-                renameHtml = `
-                    <div class="rename-area">
-                        <input type="text" id="rename-input-${encodedBuilding}" value="${escapedAttrBuilding}" placeholder="統一したい物件名を入力">
-                        <button class="btn-small" onclick="renameProperty('${escapedAttrBuilding}')">確定</button>
-                        <button class="btn-secondary btn-small" onclick="toggleRenameProperty('${escapedAttrBuilding}')">取消</button>
-                    </div>
-                `;
-            }
-
-            let headerHtml = `
-                <div class="folder-header">
-                    <h3>🏢 ${escapeHtml(building)} (${grouped[building].length}件)</h3>
-                    <div class="folder-actions">
-                        <button class="btn-secondary btn-small" onclick="movePropertyUp('${escapedAttrBuilding}')" ${isFirst ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="上へ移動">↑</button>
-                        <button class="btn-secondary btn-small" onclick="movePropertyDown('${escapedAttrBuilding}')" ${isLast ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="下へ移動">↓</button>
-                        <button class="btn-secondary btn-small" onclick="toggleRenameProperty('${escapedAttrBuilding}')">✏️ 物件名変更</button>
-                        <button class="btn-danger" onclick="deleteProperty('${escapedAttrBuilding}')">📁 この物件をまるごと削除</button>
-                    </div>
-                    ${renameHtml}
-                </div>
-            `;
-            
-            let itemsHtml = '';
-            grouped[building].forEach(sch => {
-                let timeDisplay = sch.time ? `⏰ ${sch.time}` : '時間未設定';
-                let dateDisplay = sch.date ? `(📅 ${sch.date})` : '';
-                let memoText = sch.memo ? sch.memo : '（なし）';
-                
-                itemsHtml += `
-                    <div class="schedule-item" id="item-${sch.id}">
-                        <div class="schedule-main">
-                            <div>
-                                <strong>${escapeHtml(sch.room)}</strong> - ${escapeHtml(sch.name)}様 (${escapeHtml(sch.contact)})
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <div class="badge">${timeDisplay} ${dateDisplay}</div>
-                                <button class="btn-danger btn-small" onclick="deleteSchedule('${sch.id}')">🗑️ 削除</button>
-                            </div>
-                        </div>
-                        <div class="memo-section">
-                            <strong>📝 メモ:</strong> <span id="memo-text-${sch.id}">${escapeHtml(memoText)}</span>
-                            <div style="margin-top: 4px;">
-                                <button class="btn-small" style="background-color: #7f8c8d;" onclick="toggleMemoEdit('${sch.id}')">✏️ メモ編集</button>
-                            </div>
-                            <div id="memo-edit-${sch.id}" class="memo-input-area hidden">
-                                <input type="text" id="memo-input-${sch.id}" value="${escapeHtml(sch.memo || '')}" placeholder="メモを入力...">
-                                <button class="btn-small" onclick="saveMemo('${sch.id}')">保存</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            folderDiv.innerHTML = headerHtml + itemsHtml;
-            container.appendChild(folderDiv);
-        });
     }
 
     function generateQRCode() {
@@ -1215,17 +1513,16 @@
         }
 
         db.collection("schedules").add({
-            building: building,
-            room: room,
-            name: name,
-            contact: contact,
-            time: time,
-            date: date,
-            memo: memo,
+            building,
+            room,
+            name,
+            contact,
+            time,
+            date,
+            memo,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         }).then(() => {
             alert("送信が完了しました！");
-            
             document.getElementById('input-building').value = '';
             document.getElementById('input-room').value = '';
             document.getElementById('input-name').value = '';
@@ -1240,8 +1537,8 @@
             } else {
                 switchTab('dashboard');
             }
-        }).catch((error) => {
-            console.error("送信エラー: ", error);
+        }).catch(error => {
+            console.error("送信エラー:", error);
             alert("送信に失敗しました。");
         });
     }
@@ -1258,6 +1555,14 @@
             targets.forEach(item => {
                 db.collection("schedules").doc(item.id).delete();
             });
+            const propTarget = properties.find(p => p.name === buildingName);
+            if (propTarget) {
+                db.collection("properties").doc(propTarget.id).delete();
+            }
+            if (selectedBuildingName === buildingName) {
+                selectedBuildingName = null;
+                switchTab('dashboard');
+            }
         }
     }
 
@@ -1271,6 +1576,14 @@
     }
 
     function addSampleData() {
+        db.collection("properties").add({
+            name: "〇〇ハイツ",
+            floors: 3,
+            units: 6,
+            exclude4: true,
+            exclude9: false,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
         db.collection("schedules").add({
             building: "〇〇ハイツ",
             room: "101号室",
@@ -1283,6 +1596,19 @@
         }).then(() => {
             alert("テストデータを追加しました！");
         });
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function escapeAttr(str) {
+        return String(str).replace(/"/g, "&quot;");
     }
 </script>
 
