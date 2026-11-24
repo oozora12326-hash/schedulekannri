@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（物件別共有URL対応版）</title>
+    <title>点検・予定管理アプリ（印取り列順・共有URL対応版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -297,7 +297,7 @@
         table.stamp-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 560px;
+            min-width: 620px;
         }
         table.stamp-table th, table.stamp-table td {
             border: 1px solid #cbd5e1;
@@ -319,8 +319,19 @@
             width: 100px;
             white-space: nowrap;
         }
+        .sign-cell-box {
+            min-width: 130px;
+        }
+        .sign-thumb {
+            max-height: 44px;
+            max-width: 110px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto 4px auto;
+        }
         .time-cell-box {
             min-height: 44px;
+            min-width: 120px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -341,11 +352,11 @@
             padding: 2px 8px;
             border-radius: 6px;
         }
-        .remark-cell {
+        .memo-cell {
             text-align: left !important;
-            min-width: 170px;
+            min-width: 180px;
         }
-        .remark-text {
+        .memo-text {
             font-size: 13px;
             color: #334155;
             word-break: break-word;
@@ -354,9 +365,9 @@
         .sign-status-done {
             color: #15803d;
             background: #dcfce7;
-            padding: 3px 8px;
+            padding: 2px 8px;
             border-radius: 999px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             display: inline-block;
             margin-bottom: 4px;
@@ -526,13 +537,13 @@
             </div>
         </div>
 
-        <!-- 2. 印取り用紙画面（サイン欄は別ページへ移動、右端は備考） -->
+        <!-- 2. 印取り用紙画面（部屋番号・サイン・時間指定・メモ） -->
         <div id="section-stamp" class="hidden">
             <div class="top-bar">
                 <h2>📝 印取り用紙</h2>
                 <button type="button" class="btn-secondary" id="stamp-back-detail-btn" class="hidden" onclick="backToPropertyDetail()">← 物件詳細に戻る</button>
             </div>
-            <p>左側に部屋番号、上部に時間指定・備考を表示しています。入力フォームから送信された指定時間・メモが反映され、サインは別ページで記入できます。</p>
+            <p>左から「部屋番号・サイン・時間指定・メモ」の順に表示されます。入力フォームからの指定時間・メモが反映され、サインは別ページで記入できます。</p>
 
             <div class="stamp-toolbar">
                 <button type="button" class="btn-secondary" onclick="copyStampShareUrl()">🔗 共有用URLをコピー</button>
@@ -1213,7 +1224,7 @@
             const key = normalizeRoomKey(sch.room);
             if (!key) return;
             if (!stampSheetData.rows[key]) {
-                stampSheetData.rows[key] = { timeSpec: "", remark: "", sign: "" };
+                stampSheetData.rows[key] = { timeSpec: "", memo: "", sign: "" };
             }
             if (sch.time) {
                 const timeStr = sch.date ? `${sch.date} ${sch.time}` : sch.time;
@@ -1221,8 +1232,9 @@
                     stampSheetData.rows[key].timeSpec = timeStr;
                 }
             }
-            if (sch.memo && !stampSheetData.rows[key].remark) {
-                stampSheetData.rows[key].remark = sch.memo;
+            const existingMemo = stampSheetData.rows[key].memo || stampSheetData.rows[key].remark || "";
+            if (sch.memo && !existingMemo) {
+                stampSheetData.rows[key].memo = sch.memo;
             }
         });
     }
@@ -1278,13 +1290,19 @@
         const rowsHtml = rooms.map(room => {
             const rowData = (stampSheetData.rows && stampSheetData.rows[room]) ? stampSheetData.rows[room] : {};
             const timeSpec = rowData.timeSpec || "";
-            const remark = rowData.remark || "";
-            const hasSign = Boolean(rowData.sign);
+            const memo = rowData.memo || rowData.remark || "";
+            const signData = rowData.sign || "";
             const escapedRoom = room.replace(/'/g, "\\'");
 
             return `
                 <tr>
                     <td class="room-col">${room}号室</td>
+                    <td class="sign-cell-box">
+                        ${signData
+                            ? `<img class="sign-thumb" src="${signData}" alt="${room}号室サイン"><span class="sign-status-done">✓ サイン済</span>`
+                            : `<span class="sign-status-empty">未記入</span>`}
+                        <button type="button" class="btn-secondary btn-small" onclick="openSignPage('${escapedRoom}')">✍️ サインページ</button>
+                    </td>
                     <td>
                         <div class="time-cell-box" onclick="openTimeModal('${escapedRoom}')">
                             ${timeSpec
@@ -1292,20 +1310,12 @@
                                 : `<span style="color:#94a3b8;font-size:12px;">タッチで時間指定</span>`}
                         </div>
                     </td>
-                    <td class="remark-cell">
-                        <div class="remark-text">${remark ? escapeHtml(remark) : '<span style="color:#94a3b8;font-size:12px;">（メモなし）</span>'}</div>
-                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <button type="button" class="btn-secondary btn-small" onclick="openSignPage('${escapedRoom}')">✍️ サインページへ</button>
-                            <button type="button" class="btn-small" style="background:#475569;" onclick="toggleRemarkEdit('${escapedRoom}')">📝 備考</button>
-                        </div>
-                        <div style="margin-top: 4px;">
-                            ${hasSign
-                                ? `<span class="sign-status-done">✓ サイン済</span>`
-                                : `<span class="sign-status-empty">サイン未記入</span>`}
-                        </div>
-                        <div id="remark-edit-${room}" class="memo-input-area hidden">
-                            <input type="text" id="remark-input-${room}" value="${escapeAttr(remark)}" placeholder="備考メモを入力...">
-                            <button type="button" class="btn-small" onclick="saveRemark('${escapedRoom}')">保存</button>
+                    <td class="memo-cell">
+                        <div class="memo-text">${memo ? escapeHtml(memo) : '<span style="color:#94a3b8;font-size:12px;">（メモなし）</span>'}</div>
+                        <button type="button" class="btn-small" style="background:#475569;" onclick="toggleStampMemoEdit('${escapedRoom}')">📝 メモ編集</button>
+                        <div id="stamp-memo-edit-${room}" class="memo-input-area hidden">
+                            <input type="text" id="stamp-memo-input-${room}" value="${escapeAttr(memo)}" placeholder="メモを入力...">
+                            <button type="button" class="btn-small" onclick="saveStampMemo('${escapedRoom}')">保存</button>
                         </div>
                     </td>
                 </tr>
@@ -1319,8 +1329,9 @@
                     <thead>
                         <tr>
                             <th>部屋番号</th>
+                            <th>サイン</th>
                             <th>時間指定</th>
-                            <th>備考</th>
+                            <th>メモ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1348,25 +1359,25 @@
         if (!editingTimeRoom) return;
         const val = document.getElementById('time-modal-input').value.trim();
         if (!stampSheetData.rows[editingTimeRoom]) {
-            stampSheetData.rows[editingTimeRoom] = { timeSpec: "", remark: "", sign: "" };
+            stampSheetData.rows[editingTimeRoom] = { timeSpec: "", memo: "", sign: "" };
         }
         stampSheetData.rows[editingTimeRoom].timeSpec = val;
         persistStampSheet();
         closeTimeModal();
     }
 
-    function toggleRemarkEdit(room) {
-        const el = document.getElementById(`remark-edit-${room}`);
+    function toggleStampMemoEdit(room) {
+        const el = document.getElementById(`stamp-memo-edit-${room}`);
         if (el) el.classList.toggle('hidden');
     }
 
-    function saveRemark(room) {
-        const inputEl = document.getElementById(`remark-input-${room}`);
+    function saveStampMemo(room) {
+        const inputEl = document.getElementById(`stamp-memo-input-${room}`);
         if (!inputEl) return;
         if (!stampSheetData.rows[room]) {
-            stampSheetData.rows[room] = { timeSpec: "", remark: "", sign: "" };
+            stampSheetData.rows[room] = { timeSpec: "", memo: "", sign: "" };
         }
-        stampSheetData.rows[room].remark = inputEl.value.trim();
+        stampSheetData.rows[room].memo = inputEl.value.trim();
         persistStampSheet();
     }
 
@@ -1489,7 +1500,7 @@
         const dataUrl = hasDrawnStroke ? canvas.toDataURL("image/png") : "";
 
         if (!stampSheetData.rows[editingSignRoom]) {
-            stampSheetData.rows[editingSignRoom] = { timeSpec: "", remark: "", sign: "" };
+            stampSheetData.rows[editingSignRoom] = { timeSpec: "", memo: "", sign: "" };
         }
         stampSheetData.rows[editingSignRoom].sign = dataUrl;
         updateSavedSignPreview(dataUrl);
