@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（印取り列順・共有URL対応版）</title>
+    <title>点検・予定管理アプリ</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -78,6 +78,12 @@
             flex-wrap: wrap;
             gap: 8px;
         }
+        .folder-title-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
         .folder-title-btn {
             background: transparent;
             color: var(--primary-color);
@@ -93,6 +99,19 @@
         .folder-title-btn:hover {
             background: #e2e8f0;
             color: #1d4ed8;
+        }
+        .icon-edit-btn {
+            background: transparent;
+            color: #475569;
+            width: auto;
+            padding: 4px 6px;
+            margin: 0;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .icon-edit-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
         }
         .folder-meta {
             font-size: 13px;
@@ -446,10 +465,11 @@
         @media print {
             body { background: #fff; padding: 0; }
             .container { box-shadow: none; max-width: 100%; padding: 0; }
-            .nav-tabs, .stamp-toolbar, #login-screen, #section-dashboard, #section-property-add, #section-property-detail, #section-sign-page, #section-qr, .modal-backdrop {
+            .nav-tabs, .stamp-toolbar, .btn-small, .btn-secondary, #stamp-back-detail-btn, #login-screen, #section-dashboard, #section-property-add, #section-property-detail, #section-sign-page, #section-qr, .modal-backdrop {
                 display: none !important;
             }
             #section-stamp { display: block !important; }
+            table.stamp-table th { position: static; }
         }
     </style>
 </head>
@@ -543,11 +563,11 @@
                 <h2>📝 印取り用紙</h2>
                 <button type="button" class="btn-secondary" id="stamp-back-detail-btn" class="hidden" onclick="backToPropertyDetail()">← 物件詳細に戻る</button>
             </div>
-            <p>左から「部屋番号・サイン・時間指定・メモ」の順に表示されます。入力フォームからの指定時間・メモが反映され、サインは別ページで記入できます。</p>
+            <p>左から「部屋番号・サイン・時間指定・メモ」の順に表示されます。</p>
 
             <div class="stamp-toolbar">
                 <button type="button" class="btn-secondary" onclick="copyStampShareUrl()">🔗 共有用URLをコピー</button>
-                <button type="button" class="btn-secondary" onclick="window.print()">🖨️ 印刷 / PDF</button>
+                <button type="button" class="btn-success" onclick="exportStampPdf()">📄 PDF保存</button>
             </div>
             <p id="stamp-share-status" style="margin: 0 0 12px 0; font-size: 13px; color: #27ae60; font-weight: bold;"></p>
 
@@ -660,9 +680,9 @@
 
     let schedules = [];
     let properties = [];
-    let propertyOrder = [];
     let openRenameBuilding = null;
     let selectedBuildingName = null;
+    let currentViewName = "dashboard";
     let currentStampSheetId = "default-sheet";
 
     let stampSheetData = {
@@ -680,9 +700,15 @@
     let hasDrawnStroke = false;
     let isAuthenticated = false;
 
+    // 左端右スワイプ用
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isEdgeSwipeCandidate = false;
+
     window.onload = function() {
         generateTimeOptions();
         initCanvasEvents();
+        initEdgeSwipeBack();
 
         const urlParams = new URLSearchParams(window.location.search);
         const sheetParam = urlParams.get('stampSheet');
@@ -702,6 +728,7 @@
             document.getElementById('qr-generator-section').classList.add('hidden');
             document.getElementById('form-description').innerText = "必要事項を入力して送信してください。";
             hideAllSections();
+            currentViewName = "qr";
             document.getElementById('section-qr').classList.remove('hidden');
         } else {
             if (window.location.protocol.startsWith('http')) {
@@ -730,6 +757,47 @@
             }
         }
     };
+
+    function initEdgeSwipeBack() {
+        document.addEventListener('touchstart', (e) => {
+            if (!isAuthenticated) return;
+            if (e.touches && e.touches.length === 1) {
+                const t = e.touches[0];
+                touchStartX = t.clientX;
+                touchStartY = t.clientY;
+                isEdgeSwipeCandidate = t.clientX <= 35;
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (!isAuthenticated || !isEdgeSwipeCandidate) return;
+            isEdgeSwipeCandidate = false;
+            if (e.changedTouches && e.changedTouches.length === 1) {
+                const t = e.changedTouches[0];
+                const dx = t.clientX - touchStartX;
+                const dy = Math.abs(t.clientY - touchStartY);
+                if (dx > 75 && dy < 80) {
+                    navigateBackBySwipe();
+                }
+            }
+        }, { passive: true });
+    }
+
+    function navigateBackBySwipe() {
+        if (currentViewName === "sign") {
+            backFromSignPage();
+        } else if (currentViewName === "stamp") {
+            if (selectedBuildingName) {
+                backToPropertyDetail();
+            } else {
+                switchTab('dashboard');
+            }
+        } else if (currentViewName === "detail") {
+            switchTab('dashboard');
+        } else if (currentViewName === "property-add") {
+            switchTab('dashboard');
+        }
+    }
 
     function hideAllSections() {
         [
@@ -792,10 +860,12 @@
         if (backBtn) backBtn.classList.add('hidden');
 
         if (tabName === 'dashboard') {
+            currentViewName = "dashboard";
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('tab-dashboard').classList.add('active');
             renderDashboard();
         } else if (tabName === 'stamp') {
+            currentViewName = "stamp";
             document.getElementById('section-stamp').classList.remove('hidden');
             document.getElementById('tab-stamp').classList.add('active');
             if (selectedBuildingName && backBtn) {
@@ -803,6 +873,7 @@
             }
             renderStampTable();
         } else {
+            currentViewName = "qr";
             document.getElementById('section-qr').classList.remove('hidden');
             document.getElementById('tab-qr').classList.add('active');
         }
@@ -810,6 +881,7 @@
 
     function openPropertyAddScreen() {
         hideAllSections();
+        currentViewName = "property-add";
         document.getElementById('tab-dashboard').classList.add('active');
         document.getElementById('tab-stamp').classList.remove('active');
         document.getElementById('tab-qr').classList.remove('active');
@@ -844,9 +916,6 @@
             exclude9,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).then(() => {
-            if (!propertyOrder.includes(name)) {
-                savePropertyOrder([...propertyOrder, name]);
-            }
             alert(`物件「${name}」を保存しました。`);
             switchTab('dashboard');
         }).catch(err => {
@@ -886,15 +955,6 @@
     }
 
     function startRealtimeListener() {
-        db.collection("settings").doc("propertyOrder").onSnapshot((doc) => {
-            if (doc.exists && Array.isArray(doc.data().order)) {
-                propertyOrder = doc.data().order;
-            } else {
-                propertyOrder = [];
-            }
-            renderDashboard();
-        }, err => console.error("並び順取得エラー:", err));
-
         db.collection("schedules").onSnapshot((snapshot) => {
             schedules = [];
             snapshot.forEach((doc) => {
@@ -911,54 +971,6 @@
             }
             renderStampTable();
         }, err => console.error("データ取得エラー:", err));
-    }
-
-    function getSortedBuildingNames(grouped) {
-        const currentBuildings = Object.keys(grouped);
-        const ordered = [];
-
-        propertyOrder.forEach(name => {
-            if (currentBuildings.includes(name) && !ordered.includes(name)) {
-                ordered.push(name);
-            }
-        });
-
-        currentBuildings.forEach(name => {
-            if (!ordered.includes(name)) {
-                ordered.push(name);
-            }
-        });
-
-        return ordered;
-    }
-
-    function savePropertyOrder(newOrder) {
-        propertyOrder = newOrder;
-        db.collection("settings").doc("propertyOrder").set({
-            order: newOrder
-        }).catch(err => console.error("並び順保存エラー:", err));
-    }
-
-    function movePropertyUp(buildingName) {
-        const grouped = buildGroupedMap();
-        const list = getSortedBuildingNames(grouped);
-        const idx = list.indexOf(buildingName);
-        if (idx > 0) {
-            [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
-            savePropertyOrder(list);
-            renderDashboard();
-        }
-    }
-
-    function movePropertyDown(buildingName) {
-        const grouped = buildGroupedMap();
-        const list = getSortedBuildingNames(grouped);
-        const idx = list.indexOf(buildingName);
-        if (idx >= 0 && idx < list.length - 1) {
-            [list[idx], list[idx + 1]] = [list[idx + 1], list[idx]];
-            savePropertyOrder(list);
-            renderDashboard();
-        }
     }
 
     function toggleRenameProperty(buildingName) {
@@ -993,20 +1005,8 @@
             batch.update(db.collection("properties").doc(propTarget.id), { name: newName });
         }
 
-        const updatedOrder = [];
-        propertyOrder.forEach(name => {
-            const mapped = (name === oldName) ? newName : name;
-            if (!updatedOrder.includes(mapped)) {
-                updatedOrder.push(mapped);
-            }
-        });
-        if (!updatedOrder.includes(newName)) {
-            updatedOrder.push(newName);
-        }
-
         batch.commit().then(() => {
             openRenameBuilding = null;
-            savePropertyOrder(updatedOrder);
             alert(`「${oldName}」を「${newName}」に変更しました。`);
         }).catch(err => {
             console.error("物件名変更エラー:", err);
@@ -1050,18 +1050,16 @@
         container.innerHTML = '';
 
         const grouped = buildGroupedMap();
-        const sortedBuildings = getSortedBuildingNames(grouped);
+        const sortedBuildings = Object.keys(grouped);
 
         if (sortedBuildings.length === 0) {
             container.innerHTML = '<p>登録されている物件・予定はありません。「＋ 物件追加」または「テストデータをクラウドに追加」から追加してください。</p>';
             return;
         }
 
-        sortedBuildings.forEach((building, index) => {
+        sortedBuildings.forEach((building) => {
             const items = grouped[building] || [];
             const propCfg = getPropertyConfig(building);
-            const isFirst = index === 0;
-            const isLast = index === sortedBuildings.length - 1;
             const isRenaming = openRenameBuilding === building;
             const encodedBuilding = encodeURIComponent(building);
             const escapedAttrBuilding = building.replace(/'/g, "\\'").replace(/"/g, "&quot;");
@@ -1087,16 +1085,16 @@
             folderDiv.innerHTML = `
                 <div class="folder-header">
                     <div>
-                        <button type="button" class="folder-title-btn" onclick="openPropertyDetail('${escapedAttrBuilding}')">
-                            📁 ${escapeHtml(building)} (${items.length}件)
-                        </button>
+                        <div class="folder-title-group">
+                            <button type="button" class="folder-title-btn" onclick="openPropertyDetail('${escapedAttrBuilding}')">
+                                📁 ${escapeHtml(building)} (${items.length}件)
+                            </button>
+                            <button type="button" class="icon-edit-btn" onclick="toggleRenameProperty('${escapedAttrBuilding}')" title="物件名変更">✒️</button>
+                        </div>
                         <div class="folder-meta">${propCfg.floors}階 × ${propCfg.units}戸${exText}（タッチで時間別一覧を表示）</div>
                     </div>
                     <div class="folder-actions">
-                        <button class="btn-secondary btn-small" onclick="movePropertyUp('${escapedAttrBuilding}')" ${isFirst ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="上へ移動">↑</button>
-                        <button class="btn-secondary btn-small" onclick="movePropertyDown('${escapedAttrBuilding}')" ${isLast ? 'disabled style="opacity:0.4;cursor:default;"' : ''} title="下へ移動">↓</button>
-                        <button class="btn-secondary btn-small" onclick="toggleRenameProperty('${escapedAttrBuilding}')">✏️ 物件名変更</button>
-                        <button class="btn-danger" onclick="deleteProperty('${escapedAttrBuilding}')">📁 まるごと削除</button>
+                        <button class="btn-danger" onclick="deleteProperty('${escapedAttrBuilding}')">点検完了</button>
                     </div>
                     ${renameHtml}
                 </div>
@@ -1110,6 +1108,7 @@
         const statusEl = document.getElementById('detail-share-status');
         if (statusEl) statusEl.innerText = "";
         hideAllSections();
+        currentViewName = "detail";
         document.getElementById('tab-dashboard').classList.add('active');
         document.getElementById('tab-stamp').classList.remove('active');
         document.getElementById('tab-qr').classList.remove('active');
@@ -1342,6 +1341,10 @@
         `;
     }
 
+    function exportStampPdf() {
+        window.print();
+    }
+
     function openTimeModal(room) {
         editingTimeRoom = room;
         const current = (stampSheetData.rows && stampSheetData.rows[room]) ? (stampSheetData.rows[room].timeSpec || "") : "";
@@ -1384,6 +1387,7 @@
     function openSignPage(room) {
         editingSignRoom = room;
         hideAllSections();
+        currentViewName = "sign";
         document.getElementById('section-sign-page').classList.remove('hidden');
         document.getElementById('sign-page-title').innerText = `✍️ ${room}号室 サイン記入ページ`;
         document.getElementById('sign-page-subtitle').innerText =
@@ -1615,7 +1619,7 @@
     }
 
     function deleteProperty(buildingName) {
-        if (confirm(`「${buildingName}」のすべての予定を削除しますか？`)) {
+        if (confirm(`点検完了として「${buildingName}」のデータを削除しますか？`)) {
             const targets = schedules.filter(item => item.building === buildingName);
             targets.forEach(item => {
                 db.collection("schedules").doc(item.id).delete();
