@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>点検・予定管理アプリ（物件フォルダ・時間別・印取り連携版）</title>
+    <title>点検・予定管理アプリ（物件別共有URL対応版）</title>
     <!-- FirebaseのCDN（ライブラリ）読み込み -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -281,7 +281,6 @@
             margin: 0;
         }
 
-        /* --- 印取り表スタイル --- */
         .stamp-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -369,7 +368,6 @@
             margin-bottom: 4px;
         }
 
-        /* --- サイン専用ページ --- */
         #sign-canvas {
             width: 100%;
             height: 280px;
@@ -393,7 +391,6 @@
             object-fit: contain;
         }
 
-        /* --- 時間指定編集モーダル --- */
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -518,10 +515,12 @@
                 <h2 id="detail-property-title">🏢 物件詳細</h2>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <button type="button" class="btn-success" onclick="openStampForCurrentProperty()">📋 この建物情報に応じた印取り表</button>
+                    <button type="button" class="btn-secondary" onclick="copyCurrentPropertyShareUrl()">🔗 この物件の共有URLをコピー</button>
                     <button type="button" class="btn-secondary" onclick="switchTab('dashboard')">← 予定管理に戻る</button>
                 </div>
             </div>
             <p id="detail-property-meta" style="color: #475569; font-size: 14px;"></p>
+            <p id="detail-share-status" style="margin: 0 0 10px 0; font-size: 13px; color: #27ae60; font-weight: bold;"></p>
             <div id="detail-schedule-list">
                 <p>データを読み込み中...</p>
             </div>
@@ -649,7 +648,7 @@
     const db = firebase.firestore();
 
     let schedules = [];
-    let properties = []; // { id, name, floors, units, exclude4, exclude9 }
+    let properties = [];
     let propertyOrder = [];
     let openRenameBuilding = null;
     let selectedBuildingName = null;
@@ -661,7 +660,7 @@
         units: 6,
         exclude4: false,
         exclude9: false,
-        rows: {} // { "101": { timeSpec: "", remark: "", sign: "" } }
+        rows: {}
     };
 
     let editingTimeRoom = null;
@@ -676,7 +675,12 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const sheetParam = urlParams.get('stampSheet');
-        if (sheetParam) {
+        const propParam = urlParams.get('property');
+
+        if (propParam) {
+            selectedBuildingName = decodeURIComponent(propParam);
+            currentStampSheetId = "prop-" + encodeURIComponent(selectedBuildingName);
+        } else if (sheetParam) {
             currentStampSheetId = sheetParam;
         }
 
@@ -698,11 +702,19 @@
             }
             generateQRCode();
 
-            if (sheetParam) {
+            if (sheetParam || propParam) {
                 isAuthenticated = true;
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('main-screen').classList.remove('hidden');
                 startAllListeners();
+                if (selectedBuildingName) {
+                    const propCfg = getPropertyConfig(selectedBuildingName);
+                    stampSheetData.buildingName = selectedBuildingName;
+                    stampSheetData.floors = propCfg.floors;
+                    stampSheetData.units = propCfg.units;
+                    stampSheetData.exclude4 = propCfg.exclude4;
+                    stampSheetData.exclude9 = propCfg.exclude9;
+                }
                 switchTab('stamp');
             }
         }
@@ -849,6 +861,15 @@
             renderDashboard();
             if (selectedBuildingName) {
                 renderPropertyDetail();
+                const propCfg = getPropertyConfig(selectedBuildingName);
+                if (!stampSheetData.buildingName || stampSheetData.buildingName === selectedBuildingName) {
+                    stampSheetData.buildingName = selectedBuildingName;
+                    stampSheetData.floors = propCfg.floors;
+                    stampSheetData.units = propCfg.units;
+                    stampSheetData.exclude4 = propCfg.exclude4;
+                    stampSheetData.exclude9 = propCfg.exclude9;
+                    renderStampTable();
+                }
             }
         }, err => console.error("物件取得エラー:", err));
     }
@@ -873,6 +894,9 @@
             renderDashboard();
             if (selectedBuildingName) {
                 renderPropertyDetail();
+            }
+            if (stampSheetData.buildingName) {
+                syncSchedulesIntoStampRows(stampSheetData.buildingName);
             }
             renderStampTable();
         }, err => console.error("データ取得エラー:", err));
@@ -1072,6 +1096,8 @@
 
     function openPropertyDetail(buildingName) {
         selectedBuildingName = buildingName;
+        const statusEl = document.getElementById('detail-share-status');
+        if (statusEl) statusEl.innerText = "";
         hideAllSections();
         document.getElementById('tab-dashboard').classList.add('active');
         document.getElementById('tab-stamp').classList.remove('active');
@@ -1140,6 +1166,21 @@
         }).join('');
     }
 
+    function getPropertyShareUrl(buildingName) {
+        let baseUrl = window.location.href.split('?')[0];
+        if (!baseUrl.endsWith('/')) {
+            baseUrl += '/';
+        }
+        const sheetId = "prop-" + encodeURIComponent(buildingName);
+        return `${baseUrl}?stampSheet=${encodeURIComponent(sheetId)}&property=${encodeURIComponent(buildingName)}`;
+    }
+
+    function copyCurrentPropertyShareUrl() {
+        if (!selectedBuildingName) return;
+        const shareUrl = getPropertyShareUrl(selectedBuildingName);
+        copyTextToClipboard(shareUrl, `「${selectedBuildingName}」の共有URLをコピーしました: ${shareUrl}`, 'detail-share-status');
+    }
+
     function openStampForCurrentProperty() {
         if (!selectedBuildingName) return;
         const propCfg = getPropertyConfig(selectedBuildingName);
@@ -1191,7 +1232,7 @@
             if (doc.exists) {
                 const d = doc.data();
                 stampSheetData = {
-                    buildingName: d.buildingName || stampSheetData.buildingName || "",
+                    buildingName: d.buildingName || stampSheetData.buildingName || selectedBuildingName || "",
                     floors: Number(d.floors) || stampSheetData.floors || 3,
                     units: Number(d.units) || stampSheetData.units || 6,
                     exclude4: Boolean(d.exclude4),
@@ -1472,22 +1513,35 @@
         });
     }
 
+    function copyTextToClipboard(text, successMsg, statusElementId) {
+        const setStatus = () => {
+            if (statusElementId) {
+                const el = document.getElementById(statusElementId);
+                if (el) el.innerText = successMsg;
+            }
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(setStatus).catch(() => {
+                prompt("共有用URLはこちらです:", text);
+                setStatus();
+            });
+        } else {
+            prompt("共有用URLはこちらです:", text);
+            setStatus();
+        }
+    }
+
     function copyStampShareUrl() {
         let baseUrl = window.location.href.split('?')[0];
         if (!baseUrl.endsWith('/')) {
             baseUrl += '/';
         }
-        const shareUrl = `${baseUrl}?stampSheet=${encodeURIComponent(currentStampSheetId)}`;
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(shareUrl).then(() => {
-                document.getElementById('stamp-share-status').innerText = `共有URLをコピーしました: ${shareUrl}`;
-            }).catch(() => {
-                prompt("共有用URLはこちらです:", shareUrl);
-            });
-        } else {
-            prompt("共有用URLはこちらです:", shareUrl);
-        }
+        const propQuery = stampSheetData.buildingName
+            ? `&property=${encodeURIComponent(stampSheetData.buildingName)}`
+            : "";
+        const shareUrl = `${baseUrl}?stampSheet=${encodeURIComponent(currentStampSheetId)}${propQuery}`;
+        copyTextToClipboard(shareUrl, `共有URLをコピーしました: ${shareUrl}`, 'stamp-share-status');
     }
 
     function generateQRCode() {
